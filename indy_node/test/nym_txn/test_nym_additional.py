@@ -87,6 +87,23 @@ def nym_added(looper, sdk_pool_handle, sdk_wallet_steward, endorser_did_verkey):
 def test_add_nym(nym_added):
     pass
 
+def test_nym_img(looper, sdk_pool_handle, sdk_wallet_steward, endorser_did_verkey):
+    # prepare txn
+    did, verkey = endorser_did_verkey
+    nym_request, _ = looper.loop.run_until_complete(
+        prepare_nym_request(sdk_wallet_steward, None,
+                            None, ENDORSER_STRING, did, verkey, False if verkey else True))
+    # modify transaction to include image
+    hyperledger_logo = 'https://raw.githubusercontent.com/hyperledger/indy-node/master/collateral/logos/indy-logo.png'
+    txn = json.loads(nym_request)
+    txn['operation']['img'] = hyperledger_logo # don't do this, avoid private data on ledgers
+    request_couple = sdk_sign_and_send_prepared_request(looper, sdk_wallet_steward,
+                                                        sdk_pool_handle, json.dumps(txn))
+    sdk_get_and_check_replies(looper, [request_couple])
+    # check image is in the nym
+    rep = get_nym(looper, sdk_pool_handle, sdk_wallet_steward, did)
+    assert rep[0][1]['result']['data']
+    assert json.loads(rep[0][1]['result']['data'])['img'] == hyperledger_logo
 
 def test_get_nym_without_verkey(looper, sdk_pool_handle, sdk_wallet_steward, nym_added,
                                 endorser_did_verkey):
