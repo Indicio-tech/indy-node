@@ -11,7 +11,8 @@ Environment = NamedTuple("Environment", [
 ])
 
 DOMAIN_LEDGER_ID = 1
-
+# NYM
+IMG = "img"
 # SCHEMA
 SCHEMA_NAME = "name"
 SCHEMA_VERSION = "version"

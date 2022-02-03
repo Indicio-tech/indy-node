@@ -3,14 +3,14 @@ from copy import deepcopy
 from hashlib import sha256
 
 from plenum.common.constants import TARGET_NYM, NONCE, RAW, ENC, HASH, NAME, \
-    VERSION, FORCE, ORIGIN, OPERATION_SCHEMA_IS_STRICT, OP_VER
+    VERSION, FORCE, ORIGIN, OPERATION_SCHEMA_IS_STRICT, OP_VER, ALIAS, VERKEY
 from plenum.common.messages.client_request import ClientMessageValidator as PClientMessageValidator
 from plenum.common.messages.client_request import ClientOperationField as PClientOperationField
 from plenum.common.messages.fields import ConstantField, IdentifierField, \
     LimitedLengthStringField, TxnSeqNoField, \
     Sha256HexField, JsonField, MapField, BooleanField, VersionField, \
     ChooseField, IntegerField, IterableField, \
-    AnyMapField, NonEmptyStringField, DatetimeStringField, RoleField, AnyField, FieldBase
+    AnyMapField, NonEmptyStringField, DatetimeStringField, RoleField, AnyField, FieldBase, VerkeyField, DestNymField
 from plenum.common.messages.message_base import MessageValidator
 from plenum.common.messages.node_messages import NonNegativeNumberField
 from plenum.common.request import Request as PRequest
@@ -18,7 +18,7 @@ from plenum.common.types import OPERATION
 from plenum.common.util import is_network_ip_address_valid, is_network_port_valid
 from plenum.config import JSON_FIELD_LIMIT, NAME_FIELD_LIMIT, DATA_FIELD_LIMIT, \
     NONCE_FIELD_LIMIT, \
-    ENC_FIELD_LIMIT, RAW_FIELD_LIMIT, SIGNATURE_TYPE_FIELD_LIMIT
+    ENC_FIELD_LIMIT, RAW_FIELD_LIMIT, SIGNATURE_TYPE_FIELD_LIMIT, ALIAS_FIELD_LIMIT
 from common.version import GenericVersion
 
 from indy_common.authorize.auth_actions import ADD_PREFIX, EDIT_PREFIX
@@ -44,7 +44,7 @@ from indy_common.constants import TXN_TYPE, ATTRIB, GET_ATTR, \
     RS_NAME, RS_ID, RS_CONTENT, RS_CONTEXT_TYPE_VALUE, RICH_SCHEMA, RS_SCHEMA_TYPE_VALUE, RS_ENCODING_TYPE_VALUE, \
     RICH_SCHEMA_ENCODING, RS_MAPPING_TYPE_VALUE, RICH_SCHEMA_MAPPING, RS_CRED_DEF_TYPE_VALUE, \
     RICH_SCHEMA_CRED_DEF, GET_RICH_SCHEMA_OBJECT_BY_ID, GET_RICH_SCHEMA_OBJECT_BY_METADATA, \
-    RICH_SCHEMA_PRES_DEF, RS_PRES_DEF_TYPE_VALUE
+    RICH_SCHEMA_PRES_DEF, RS_PRES_DEF_TYPE_VALUE, NYM, IMG
 from indy_common.version import SchemaVersion
 
 
@@ -69,8 +69,15 @@ class ClientGetNymOperation(MessageValidator):
         (TXN_TYPE, ConstantField(GET_NYM)),
         (TARGET_NYM, IdentifierField()),
     )
-
-
+class ClientNYMOperation(MessageValidator):
+    schema = (
+        (TXN_TYPE, ConstantField(NYM)),
+        (ALIAS, LimitedLengthStringField(max_length=ALIAS_FIELD_LIMIT, optional=True)),
+        (VERKEY, VerkeyField(optional=True, nullable=True)),
+        (TARGET_NYM, DestNymField()),
+        (ROLE, RoleField(optional=True)),
+        (IMG, LimitedLengthStringField(max_length=RAW_FIELD_LIMIT, optional=True)) # <----- new image field
+    )
 class ClientDiscloOperation(MessageValidator):
     schema = (
         (TXN_TYPE, ConstantField(DISCLO)),
@@ -469,6 +476,7 @@ class ClientGetRichSchemaObjectByMetadataOperation(MessageValidator):
 
 class ClientOperationField(PClientOperationField):
     _specific_operations = {
+        NYM: ClientNYMOperation(),
         SCHEMA: ClientSchemaOperation(),
         ATTRIB: ClientAttribOperation(),
         GET_ATTR: ClientGetAttribOperation(),
