@@ -4,7 +4,7 @@ from typing import Optional
 from common.serializers.serialization import domain_state_serializer
 from indy_common.authorize.auth_actions import AuthActionAdd, AuthActionEdit
 from indy_common.authorize.auth_request_validator import WriteRequestValidator
-from indy_common.constants import NYM
+from indy_common.constants import IMG, NYM
 from indy_common.auth import Authoriser
 from ledger.util import F
 
@@ -75,6 +75,8 @@ class NymHandler(PNymHandler):
             new_data[ROLE] = txn_data[ROLE]
         if VERKEY in txn_data:
             new_data[VERKEY] = txn_data[VERKEY]
+        if IMG in txn_data:
+            new_data[IMG] = txn_data[IMG]
         new_data[F.seqNo.name] = get_seq_no(txn)
         new_data[TXN_TIME] = get_txn_time(txn)
         existing_data.update(new_data)
