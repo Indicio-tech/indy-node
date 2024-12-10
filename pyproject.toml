@@ -1,0 +1,90 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "indy-node"
+version = "1.13.2"
+description = "This codebase embodies all the functionality to run nodes (validators and/or observers) that provide a self-sovereign identity ecosystem on top of a distributed ledger. It is the core project for Indy"
+keywords = ["indy", "indy-node", "indy-sdk", "sovrin", "sovrin-node", "sovrin-sdk", "hyperledger", "hyperledger-indy", "hyperledger-sovrin", "distributed-ledger", "identity", "self-sovereign", "ssi"]
+authors = ["Hyperledger"]
+#author_email = "hyperledger-indy@lists.hyperledger.org"
+#url = "https://github.com/hyperledger/indy-node"
+#maintainer = "Hyperledger"
+license = "Apache 2.0"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3"
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+attrs = "^24.2.0"
+pytest = "^8.3.3"
+pytest-xdist = "^3.6.1"
+pytest-forked = "^1.6.0"
+python3-indy = "^1.16.0.post286"
+pytest-asyncio = "^0.24.0"
+
+[tool.poetry.dev-dependencies]
+flake8 = "^3.9.2"
+indy-plenum = ">=1.13.1"
+
+
+[tool.poetry.scripts]
+start_indy_node = "scripts.start_indy_node"
+start_node_control_tool = "scripts.start_node_control_tool"
+clear_node = "scripts.clear_node"
+get_keys = "scripts.get_keys"
+get_metrics = "scripts.get_metrics"
+generate_indy_pool_transactions = "scripts.generate_indy_pool_transactions"
+init_indy_keys = "scripts.init_indy_keys"
+upgrade_indy_node_ubuntu1604 = "scripts.upgrade_indy_node_ubuntu1604.sh"
+upgrade_indy_node_ubuntu1604_test = "scripts.upgrade_indy_node_ubuntu1604_test.sh"
+upgrade_indy_node = "scripts.upgrade_indy_node.bat"
+upgrade_indy_node_test = "scripts.upgrade_indy_node_test.bat"
+restart_indy_node_ubuntu1604 = "scripts.restart_indy_node_ubuntu1604.sh"
+restart_indy_node = "scripts.restart_indy_node.bat"
+restart_sovrin_node_ubuntu1604 = "scripts.restart_sovrin_node_ubuntu1604.sh"
+complete_rebranding_upgrade_ubuntu1604 = "scripts.complete_rebranding_upgrade_ubuntu1604.sh"
+install_indy_node = "scripts.install_indy_node.bat"
+delete_indy_node = "scripts.delete_indy_node.bat"
+restart_upgrade_agent = "scripts.restart_upgrade_agent.bat"
+install_nssm = "scripts.install_nssm.bat"
+read_ledger = "scripts.read_ledger"
+validator_info = "scripts.validator-info"
+validator_info_history = "scripts.validator-info-history"
+init_bls_keys = "scripts.init_bls_keys"
+create_dirs = "scripts.create_dirs.sh"
+setup_iptables = "scripts.setup_iptables"
+setup_indy_node_iptables = "scripts.setup_indy_node_iptables"
+current_validators = "scripts.current_validators"
+node_address_list = "scripts.node_address_list"
+generate_bls_proof_of_possession = "scripts.generate_bls_proof_of_possession"
+nscapture = "tools.diagnostics.nscapture"
+nsdiff = "tools.diagnostics.nsdiff"
+nsreplay = "tools.diagnostics.nsreplay"
+
+#[tool.poetry.packages]
+#include = [
+#    { include = "indy_node", from = "." },
+#    { include = "data", from = "." }
+#]
+#exclude = ["docs", "docs*"]
+
+#[tool.poetry.package.include]
+#"*.txt" = { include = ["*.txt"] }
+#"*.md" = { include = ["*.md"] }
+#"*.rst" = { include = ["*.rst"] }
+#"*.json" = { include = ["*.json"] }
+#"*.conf" = { include = ["*.conf"] }
+#"*.html" = { include = ["*.html"] }
+#"*.css" = { include = ["*.css"] }
+#"*.ico" = { include = ["*.ico"] }
+#"*.png" = { include = ["*.png"] }
+#"LICENSE" = { include = ["LICENSE"] }
+#"LEGAL" = { include = ["LEGAL"] }
+#"*.indy" = { include = ["*.indy"] }
+
+#[tool.poetry.data-files]
+#"data/nssm_original.exe" = ["data/nssm_original.exe"]
