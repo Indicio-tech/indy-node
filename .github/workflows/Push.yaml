@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - test-automation-integration
+      - ubuntu-22.04
     paths:
       - '**.py'
       - '.github/**'
