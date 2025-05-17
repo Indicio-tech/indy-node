@@ -51,7 +51,7 @@ setup(
         '': ['*.txt', '*.md', '*.rst', '*.json', '*.conf', '*.html',
              '*.css', '*.ico', '*.png', 'LICENSE', 'LEGAL', '*.indy']},
     include_package_data=True,
-    exclude_package_data={'data','__init__.py'}
+    exclude_package_data={'data':'__init__.py'}
     data_files=[(
         (BASE_DIR, ['data/nssm_original.exe'])
     )],
