@@ -55,7 +55,7 @@ setup(
         (BASE_DIR, ['data/nssm_original.exe'])
     )],
 
-    install_requires=['indy-plenum==1.14.0-rc0',
+    install_requires=['indicio-indy-plenum==1.13.2-rc12',
                     # importlib-metadata needs to be pinned to 3.10.1 because from v4.0.0 the package
                     # name ends in python3-importlib-metadata_0.0.0_amd64.deb
                     # see also build-scripts/ubuntu-2004/build-3rd-parties.sh
