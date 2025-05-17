@@ -34,7 +34,8 @@ if [ "$distro_packages" = "debian-packages" ]; then
   sed -i "s~distro~python3-distro~" setup.py
   sed -i "s~indicio-indy-plenum~indy-plenum~" setup.py
   sed -i "s~importlib-metadata=~python3-importlib-metadata=~" setup.py
-  
+  sed -i "s/-rc/~rc/" setup.py
+
   echo "Preparing config files"
   GENERAL_CONFIG_DIR="\/etc\/indy"
   REPO_GENERAL_CONFIG_DIR="indy_node/general_config"
