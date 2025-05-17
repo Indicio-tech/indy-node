@@ -32,6 +32,7 @@ if [ "$distro_packages" = "debian-packages" ]; then
   echo -e "\nAdapt the dependencies for the Canonical archive"
   sed -i "s~timeout-decorator~python3-timeout-decorator~" setup.py
   sed -i "s~distro~python3-distro~" setup.py
+  sed -i "s~indicio-indy-plenum~indy-plenum~" setup.py
   sed -i "s~importlib-metadata=~python3-importlib-metadata=~" setup.py
   
   echo "Preparing config files"
