@@ -51,17 +51,18 @@ def set_manifest(manifest: Any, manifest_file: str = MANIFEST_FILE):
         _f.write('\n')
 
 
-__title__ = 'indy-node'
+__title__ = 'indicio-indy-node'
 __version_info__ = load_version()
 __version__ = __version_info__.full
 __manifest__ = load_manifest()
 __description__ = 'Indy node'
 __long_description__ = __description__
 __keywords__ = 'Indy Node'
-__url__ = 'https://github.com/hyperledger/indy-node'
+__url__ = 'https://github.com/Indicio-tech/indy-node'
 __author__ = "Hyperledger"
 __author_email__ = 'hyperledger-indy@lists.hyperledger.org'
-__maintainer__ = "Hyperledger"
+__maintainer__ = 'Indicio'
+__maintainer_email__ = 'support@indicio.tech'
 __license__ = "Apache 2.0"
 
 
