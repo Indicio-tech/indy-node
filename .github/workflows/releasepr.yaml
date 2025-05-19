@@ -73,7 +73,7 @@ jobs:
   call-indy-test-automation:
     name: Indy-Test-Automation
     needs: [build_packages]
-    uses: hyperledger/indy-test-automation/.github/workflows/callable_test-automation-node.yaml@v0.11
+    uses: Indicio-tech/indy-test-automation/.github/workflows/callable_test-automation-node.yaml@v2
     with:
       ubuntuVersion: "ubuntu-2004"
       libIndyVersion: "1.15.0~1625-bionic"
