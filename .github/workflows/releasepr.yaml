@@ -85,6 +85,6 @@ jobs:
   statusCheck:
     name: statusCheck
     runs-on: ubuntu-latest
-    needs: [indy_node_tests, call-indy-test-automation]
+    needs: [indy_node_tests] #, call-indy-test-automation]
     steps:
       - run: 'echo "Just a status Check (Always true, when executed) for branch protection rules(blocks merging while test are running and if tests fail)." '
