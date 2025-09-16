@@ -33,9 +33,7 @@ fpm --input-type "python" \
     --depends iptables \
     --depends libsodium23 \
     --depends "indy-plenum(=${plenumDebVersion})" \
-    --depends "python3-distro(=1.7.0-1)" \
     --python-disable-dependency "indy-plenum" \
-    --python-disable-dependency "python3-distro" \
     --no-python-fix-dependencies \
     --maintainer "Hyperledger <hyperledger-indy@lists.hyperledger.org>" \
     --before-install "preinst_node" \
