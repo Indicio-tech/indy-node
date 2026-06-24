@@ -67,6 +67,8 @@ REINSTALL = 'reinstall'
 SIGNATURE_TYPE = 'signature_type'
 TAG = 'tag'
 PACKAGE = 'package'
+DOCKER_IMAGE = 'image'
+DEFAULT_DOCKER_IMAGE = 'ghcr.io/hyperledger/indy-node:latest'
 
 REVOC_TYPE = "revocDefType"
 ID = "id"
@@ -137,7 +139,8 @@ allOpKeys = (
     SIGNATURE_TYPE,
     FORCE,
     WRITES,
-    REINSTALL)
+    REINSTALL,
+    DOCKER_IMAGE)
 
 reqOpKeys = (TXN_TYPE,)
 

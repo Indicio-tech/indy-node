@@ -9,14 +9,15 @@ from indy_node.server.action_log import ActionLogData, ActionLogEvents, ActionLo
 
 
 class UpgradeLogData(ActionLogData):
-    _items = ActionLogData._items + ['version', 'upgrade_id', 'pkg_name']
+    _items = ActionLogData._items + ['version', 'upgrade_id', 'pkg_name', 'image_name']
 
     def __init__(
             self,
             when: Union[datetime, str],
             version: Union[SourceVersion, str],
             upgrade_id: str,
-            pkg_name: str = APP_NAME
+            pkg_name: str = APP_NAME,
+            image_name: str = None
     ):
         super().__init__(when)
 
@@ -31,6 +32,7 @@ class UpgradeLogData(ActionLogData):
         self.version = version
         self.upgrade_id = upgrade_id
         self.pkg_name = pkg_name
+        self.image_name = image_name
 
 
 class UpgradeLog(ActionLog):

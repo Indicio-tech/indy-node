@@ -18,7 +18,7 @@ from common.version import (
 
 from indy_common.constants import ACTION, POOL_UPGRADE, START, SCHEDULE, \
     CANCEL, JUSTIFICATION, TIMEOUT, NODE_UPGRADE, \
-    UPGRADE_MESSAGE, PACKAGE, APP_NAME
+    UPGRADE_MESSAGE, PACKAGE, APP_NAME, DOCKER_IMAGE, DEFAULT_DOCKER_IMAGE
 from indy_common.version import src_version_cls
 from indy_node.server.upgrade_log import UpgradeLogData, UpgradeLog
 from indy_node.utils.node_control_utils import NodeControlUtil
@@ -44,8 +44,16 @@ class Upgrader(NodeMaintainer):
             from indy_node.__metadata__ import __version__
             return src_version_cls(APP_NAME)(__version__)
 
-        curr_pkg_ver, _ = NodeControlUtil.curr_pkg_info(pkg_name)
-        return curr_pkg_ver.upstream if curr_pkg_ver else None
+        try:
+            curr_pkg_ver, _ = NodeControlUtil.curr_pkg_info(pkg_name)
+            return curr_pkg_ver.upstream if curr_pkg_ver else None
+        except Exception as exc:
+            logger.warning(
+                "{} failed to get package info for {}: {}"
+                .format("Upgrader", pkg_name, exc)
+            )
+            from indy_node.__metadata__ import __version__
+            return src_version_cls(APP_NAME)(__version__)
 
     @staticmethod
     def is_version_upgradable(
@@ -99,11 +107,18 @@ class Upgrader(NodeMaintainer):
         logger.info(
             "Node '{}' successfully upgraded to version {}"
             .format(self.nodeName, ev_data.version))
-        self._notifier.sendMessageUponNodeUpgradeComplete(
-            "Upgrade of package {} on node '{}' to version {} scheduled on {} "
-            " with upgrade_id {} completed successfully"
-            .format(ev_data.pkg_name, self.nodeName,
-                    ev_data.version, ev_data.when, ev_data.upgrade_id))
+        if ev_data.image_name:
+            self._notifier.sendMessageUponNodeUpgradeComplete(
+                "Docker image {} on node '{}' to version {} scheduled on {} "
+                " with upgrade_id {} completed successfully"
+                .format(ev_data.image_name, self.nodeName,
+                        ev_data.version, ev_data.when, ev_data.upgrade_id))
+        else:
+            self._notifier.sendMessageUponNodeUpgradeComplete(
+                "Upgrade of package {} on node '{}' to version {} scheduled on {} "
+                " with upgrade_id {} completed successfully"
+                .format(ev_data.pkg_name, self.nodeName,
+                        ev_data.version, ev_data.when, ev_data.upgrade_id))
 
     def should_notify_about_upgrade_result(self):
         # do not rely on NODE_UPGRADE txn in config ledger, since in
@@ -193,6 +208,8 @@ class Upgrader(NodeMaintainer):
         lastEventInfo = self.lastActionEventInfo
         if lastEventInfo:
             ev_data = lastEventInfo.data
+            if ev_data.image_name:
+                return self._did_docker_upgrade_succeed(ev_data)
             currentPkgVersion = NodeControlUtil.curr_pkg_info(ev_data.pkg_name)[0]
             if currentPkgVersion:
                 return currentPkgVersion.upstream == ev_data.version
@@ -202,6 +219,29 @@ class Upgrader(NodeMaintainer):
                     "scheduled for last upgrade"
                     .format(self, ev_data.pkg_name)
                 )
+        return False
+
+    def _did_docker_upgrade_succeed(self, ev_data) -> bool:
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["docker", "inspect", "--format", "{{.Config.Image}}",
+                 "indy-node"],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode == 0:
+                running_image = result.stdout.strip()
+                return running_image == ev_data.image_name
+            else:
+                logger.warning(
+                    "{} failed to inspect Docker container: {}"
+                    .format(self, result.stderr.strip())
+                )
+        except Exception as exc:
+            logger.warning(
+                "{} failed to check Docker container status: {}"
+                .format(self, exc)
+            )
         return False
 
     @staticmethod
@@ -266,6 +306,7 @@ class Upgrader(NodeMaintainer):
         version = txn_data[VERSION]
         justification = txn_data.get(JUSTIFICATION)
         pkg_name = txn_data.get(PACKAGE, self.config.UPGRADE_ENTRY)
+        image_name = txn_data.get(DOCKER_IMAGE)
         upgrade_id = self.get_action_id(txn)
 
         # TODO test
@@ -300,7 +341,7 @@ class Upgrader(NodeMaintainer):
             if isinstance(when, str):
                 when = dateutil.parser.parse(when)
 
-            new_ev_data = UpgradeLogData(when, version, upgrade_id, pkg_name)
+            new_ev_data = UpgradeLogData(when, version, upgrade_id, pkg_name, image_name)
 
             if self.scheduledAction:
                 if self.scheduledAction == new_ev_data:
@@ -343,11 +384,18 @@ class Upgrader(NodeMaintainer):
             .format(self, ev_data.pkg_name, ev_data.version))
         now = datetime.utcnow().replace(tzinfo=dateutil.tz.tzutc())
 
-        self._notifier.sendMessageUponNodeUpgradeScheduled(
-            "Upgrade of package {} on node '{}' to version {} "
-            "has been scheduled on {}"
-            .format(ev_data.pkg_name, self.nodeName,
-                    ev_data.version, ev_data.when))
+        if ev_data.image_name:
+            self._notifier.sendMessageUponNodeUpgradeScheduled(
+                "Docker image {} on node '{}' to version {} "
+                "has been scheduled on {}"
+                .format(ev_data.image_name, self.nodeName,
+                        ev_data.version, ev_data.when))
+        else:
+            self._notifier.sendMessageUponNodeUpgradeScheduled(
+                "Upgrade of package {} on node '{}' to version {} "
+                "has been scheduled on {}"
+                .format(ev_data.pkg_name, self.nodeName,
+                        ev_data.version, ev_data.when))
         self._actionLog.append_scheduled(ev_data)
 
         callAgent = partial(self._callUpgradeAgent, ev_data, failTimeout)
@@ -413,6 +461,32 @@ class Upgrader(NodeMaintainer):
             self._sendUpgradeRequest(ev_data, failTimeout))
 
     async def _sendUpgradeRequest(self, ev_data, failTimeout):
+        if ev_data.image_name:
+            logger.info("Performing Docker upgrade to image {}".format(ev_data.image_name))
+            try:
+                import subprocess
+                pull = subprocess.run(
+                    ["docker", "compose", "pull", "indy-node"],
+                    capture_output=True, text=True, timeout=120
+                )
+                if pull.returncode != 0:
+                    raise RuntimeError("docker compose pull failed: {}".format(pull.stderr.strip()))
+                up = subprocess.run(
+                    ["docker", "compose", "up", "-d", "--force-recreate", "indy-node"],
+                    capture_output=True, text=True, timeout=120
+                )
+                if up.returncode != 0:
+                    raise RuntimeError("docker compose up failed: {}".format(up.stderr.strip()))
+            except Exception as ex:
+                logger.warning("Docker upgrade failed: {}".format(ex))
+                self._action_failed(ev_data, reason=str(ex))
+                self._unscheduleAction()
+                return
+            logger.info("Waiting {} minutes for Docker upgrade to complete".format(failTimeout))
+            timesUp = partial(self._declareTimeoutExceeded, ev_data)
+            self._schedule(timesUp, self.get_timeout(failTimeout))
+            return
+
         retryLimit = self.retry_limit
         while retryLimit:
             try:
