@@ -91,3 +91,19 @@ def test_upgrade_log_loads_legacy_data(monkeypatch, log_file_path):
         new_logs_read = f.read()
 
     assert new_logs_read == new_logs
+
+
+def test_upgrade_log_loads_entries_without_image_name(log_file_path):
+    entries = (
+        "2019-02-28 07:36:23.135789\tscheduled\t2019-02-28 07:37:11+00:00\t1.6.83\t15513393820971606221\r\n"
+        "2019-02-28 07:37:11.008484\tstarted\t2019-02-28 07:37:11+00:00\t1.6.83\t15513393820971606221\tindy-node\r\n"
+        "2019-02-28 07:38:33.721644\tsucceeded\t2019-02-28 07:37:11+00:00\t1.6.83\t15513393820971606221\tindy-node\r\n"
+    )
+    with open(log_file_path, 'w', newline='') as f:
+        f.write(entries)
+    upgrade_log = UpgradeLog(log_file_path)
+
+    assert len(upgrade_log) == 3
+    for ev in upgrade_log:
+        assert ev.data.image_name is None
+    assert upgrade_log.last_event.data.image_name is None
