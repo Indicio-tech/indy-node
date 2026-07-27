@@ -3,7 +3,7 @@ from typing import Optional
 from indy_common.authorize.auth_actions import AuthActionAdd, AuthActionEdit
 
 from indy_common.constants import CONFIG_LEDGER_ID, POOL_UPGRADE, \
-    ACTION, CANCEL, START, SCHEDULE
+    ACTION, CANCEL, START, SCHEDULE, DOCKER_IMAGE, PACKAGE
 
 from indy_common.authorize.auth_request_validator import WriteRequestValidator
 from indy_node.server.upgrader import Upgrader
@@ -45,6 +45,13 @@ class PoolUpgradeHandler(WriteRequestHandler):
                 raise InvalidClientRequest(identifier, req_id,
                                            "{} not a valid schedule since {}".
                                            format(schedule, msg))
+            image = operation.get(DOCKER_IMAGE)
+            package = operation.get(PACKAGE)
+            if not image and not package:
+                raise InvalidClientRequest(
+                    identifier, req_id,
+                    "One of '{}' or '{}' is required for START action"
+                    .format(DOCKER_IMAGE, PACKAGE))
 
     def additional_dynamic_validation(self, request: Request, req_pp_time: Optional[int]):
         self._validate_request_type(request)
