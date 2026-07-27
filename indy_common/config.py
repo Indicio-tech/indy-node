@@ -97,6 +97,9 @@ INCONSISTENCY_WATCHER_NETWORK_TIMEOUT = 90
 # Top level package to be updated via pool upgrade command
 UPGRADE_ENTRY = 'indy-node'
 
+# Directory containing docker-compose.yaml for Docker-based upgrades
+COMPOSE_PROJECT_DIR = '/opt/indy-node'
+
 
 
 

@@ -187,7 +187,7 @@ class Upgrader(NodeMaintainer):
             import subprocess
             result = subprocess.run(
                 ["docker", "inspect", "--format", "{{.Config.Image}}",
-                 "indy-node"],
+                 self.config.UPGRADE_ENTRY],
                 capture_output=True, text=True, timeout=30
             )
             if result.returncode == 0:
@@ -381,16 +381,17 @@ class Upgrader(NodeMaintainer):
     async def _sendUpgradeRequest(self, ev_data, failTimeout):
         if ev_data.image_name:
             logger.info("Performing Docker upgrade to image {}".format(ev_data.image_name))
+            compose_dir = self.config.COMPOSE_PROJECT_DIR
             try:
                 import subprocess
                 pull = subprocess.run(
-                    ["docker", "compose", "pull", "indy-node"],
+                    ["docker", "compose", "--project-directory", compose_dir, "pull", "indy-node"],
                     capture_output=True, text=True, timeout=120
                 )
                 if pull.returncode != 0:
                     raise RuntimeError("docker compose pull failed: {}".format(pull.stderr.strip()))
                 up = subprocess.run(
-                    ["docker", "compose", "up", "-d", "--force-recreate", "indy-node"],
+                    ["docker", "compose", "--project-directory", compose_dir, "up", "-d", "--force-recreate", "indy-node"],
                     capture_output=True, text=True, timeout=120
                 )
                 if up.returncode != 0:
