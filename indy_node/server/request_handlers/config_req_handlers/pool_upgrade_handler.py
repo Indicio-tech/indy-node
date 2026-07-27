@@ -1,13 +1,9 @@
-import re
-
 from typing import Optional
 
 from indy_common.authorize.auth_actions import AuthActionAdd, AuthActionEdit
 
-from indy_common.config_util import getConfig
-
 from indy_common.constants import CONFIG_LEDGER_ID, POOL_UPGRADE, \
-    ACTION, CANCEL, START, SCHEDULE, PACKAGE, REINSTALL, DOCKER_IMAGE
+    ACTION, CANCEL, START, SCHEDULE
 
 from indy_common.authorize.auth_request_validator import WriteRequestValidator
 from indy_node.server.upgrader import Upgrader
@@ -84,23 +80,6 @@ class PoolUpgradeHandler(WriteRequestHandler):
                                          new_value=action)
         self.write_req_validator.validate(request,
                                           [auth_action])
-
-        if DOCKER_IMAGE not in operation:
-            pkg_to_upgrade = operation.get(PACKAGE, getConfig().UPGRADE_ENTRY)
-            if not pkg_to_upgrade:
-                raise InvalidClientRequest(identifier, req_id, "Upgrade package name is empty")
-
-            # Only allow processing of a single package
-            pkg_to_upgrade = re.split("\s+|;|&&|\|", pkg_to_upgrade.splitlines()[0], 1)[0].rstrip()
-            targetVersion = operation[VERSION]
-            reinstall = operation.get(REINSTALL, False)
-            try:
-                res = self.upgrader.check_upgrade_possible(pkg_to_upgrade, targetVersion, reinstall)
-            except Exception as exc:
-                res = str(exc)
-
-            if res:
-                raise InvalidClientRequest(identifier, req_id, res)
 
     def apply_forced_request(self, req: Request):
         super().apply_forced_request(req)

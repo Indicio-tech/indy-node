@@ -1,28 +1,39 @@
-name: Repo Dispatched Update Plenum Dependecy
+name: Repo Dispatched Update Plenum Dependency
 
 on:
   repository_dispatch:
     types: [update-node]
 
+env:
+  BASE_IMAGE: ghcr.io/hyperledger/indy-node-base
+  PROD_IMAGE: ghcr.io/hyperledger/indy-node
+
 jobs:
-  update-setup:
-    runs-on: ubuntu-latest
+  rebuild-docker:
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Update indy-plenum to ${{ github.event.client_payload.pyVersion }}
-        run: |
-          sed -i "s/\(indy-plenum==\)[^ ]*/\1${{ github.event.client_payload.pyVersion }},/g" setup.py
 
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          author: ${{ github.actor }} <${{ github.event.pusher.email }}>
-          signoff: true
-          committer: ${{ github.actor }} <${{ github.event.pusher.email }}>
-          commit-message: "Automated Update to indy-plenum==${{ github.event.client_payload.pyVersion }}"
-          title: "Automated Update to indy-plenum==${{ github.event.client_payload.pyVersion }}"
-          body: "This PR updates the indy-plenum version in `setup.py` to use `indy-plenum==${{ github.event.client_payload.pyVersion }}`."
-          branch: "PlenumUpdates"
-          delete-branch: true
-          base: "DependencyUpdateTrigger"
+          registry: ghcr.io
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push base image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.base
+          push: true
+          build-args: |
+            PLENUM_BASE_IMAGE=ghcr.io/hyperledger/indy-plenum-base:${{ github.event.client_payload.dockerTag }}
+          tags: ${{ env.BASE_IMAGE }}:latest
+
+      - name: Build and push production image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ env.PROD_IMAGE }}:latest

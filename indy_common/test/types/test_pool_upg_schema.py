@@ -17,6 +17,7 @@ EXPECTED_ORDERED_FIELDS = OrderedDict([
     ("name", LimitedLengthStringField),
     ("force", BooleanField),
     ("reinstall", BooleanField),
+    ("image", LimitedLengthStringField),
     ("package", LimitedLengthStringField),
 ])
 

@@ -7,13 +7,12 @@ import dateutil.parser
 import dateutil.tz
 
 from indy_common.types import Request
-from indy_node.server.node_maintainer import NodeMaintainer, \
-    NodeControlToolMessage
+from indy_node.server.node_maintainer import NodeMaintainer
 from indy_node.server.restart_log import RestartLogData, RestartLog
 from stp_core.common.log import getlogger
 from plenum.common.constants import TXN_TYPE
 from indy_common.constants import ACTION, POOL_RESTART, START, DATETIME, \
-    CANCEL, TIMEOUT, RESTART_MESSAGE
+    CANCEL, TIMEOUT
 import asyncio
 
 logger = getlogger()
@@ -92,11 +91,15 @@ class Restarter(NodeMaintainer):
 
         now = datetime.utcnow().replace(tzinfo=dateutil.tz.tzutc())
         if when is None or now >= when:
-            msg = RestartMessage().toJson()
             try:
-                asyncio.ensure_future(self._open_connection_and_send(msg))
+                import subprocess
+                logger.info("Restarting Docker container indy-node immediately")
+                subprocess.run(
+                    ["docker", "compose", "restart", "indy-node"],
+                    capture_output=True, text=True, timeout=30, check=True
+                )
             except Exception as ex:
-                logger.warning(ex.args[0])
+                logger.warning("Docker restart failed: {}".format(ex))
             return
 
         if fail_timeout is None:
@@ -186,29 +189,25 @@ class Restarter(NodeMaintainer):
             self._sendUpdateRequest(ev_data, failTimeout))
 
     async def _sendUpdateRequest(self, ev_data: RestartLogData, failTimeout):
-        retryLimit = self.retry_limit
-        while retryLimit:
-            try:
-                msg = RestartMessage().toJson()
-                logger.info("Sending message to control tool: {}".format(msg))
-                await self._open_connection_and_send(msg)
-                break
-            except Exception as ex:
-                logger.warning("Failed to communicate to control tool: {}"
-                               .format(ex))
-                asyncio.sleep(self.retry_timeout)
-                retryLimit -= 1
-        if not retryLimit:
-            self._action_failed(ev_data,
-                                reason="problems in communication with "
-                                       "node control service")
+        try:
+            import subprocess
+            logger.info("Restarting Docker container indy-node")
+            result = subprocess.run(
+                ["docker", "compose", "restart", "indy-node"],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode != 0:
+                raise RuntimeError("docker compose restart failed: {}".format(result.stderr.strip()))
+        except Exception as ex:
+            logger.warning("Docker restart failed: {}".format(ex))
+            self._action_failed(ev_data, reason=str(ex))
             self._unscheduleAction()
             self._actionFailedCallback()
-        else:
-            logger.info("Waiting {} minutes for restart to be performed"
-                        .format(failTimeout))
-            timesUp = partial(self._declareTimeoutExceeded, ev_data)
-            self._schedule(timesUp, self.get_timeout(failTimeout))
+            return
+        logger.info("Waiting {} minutes for restart to be performed"
+                    .format(failTimeout))
+        timesUp = partial(self._declareTimeoutExceeded, ev_data)
+        self._schedule(timesUp, self.get_timeout(failTimeout))
 
     def _declareTimeoutExceeded(self, ev_data: RestartLogData):
         """
@@ -242,15 +241,3 @@ class Restarter(NodeMaintainer):
             logger.error("This problem may have external reasons, "
                          "check syslog for more information")
 
-
-class RestartMessage(NodeControlToolMessage):
-    """
-    Data structure that represents request for node update
-    """
-
-    def __init__(self):
-        super().__init__(RESTART_MESSAGE)
-
-    def toJson(self):
-        import json
-        return json.dumps(self.__dict__)

@@ -10,76 +10,72 @@ on:
 
   workflow_dispatch:
 
+env:
+  BASE_IMAGE: ghcr.io/hyperledger/indy-node-base
+  PROD_IMAGE: ghcr.io/hyperledger/indy-node
+
 jobs:
-  workflow-setup:
-    name: Initialize Workflow
+  testsNeeded:
+    name: Check if tests needed
     runs-on: ubuntu-latest
     outputs:
-      CACHE_KEY_BUILD: ${{ steps.setup.outputs.CACHE_KEY_BUILD }}
-      UBUNTU_VERSION: ${{ steps.setup.outputs.UBUNTU_VERSION }}
-      # Expose the lowercase version of the GitHub repository name
-      # to all subsequent jobs that reference image repositories
-      # as the push and pull operations require the URL of the repository
-      # to be in lowercase.
-      GITHUB_REPOSITORY_NAME: ${{ steps.setup.outputs.GITHUB_REPOSITORY_NAME }}
-      distribution: ${{ steps.setup.outputs.distribution }}
-      publish: ${{ steps.setup.outputs.publish }}
-      testsNeeded: ${{ steps.testsNeeded.outputs.testsNeeded }}
+      testsNeeded: ${{ steps.filter.outputs.testsNeeded }}
     steps:
-      - name: checkout source code
-        uses: actions/checkout@v4
-      - name: setup
-        id: setup
-        uses: hyperledger/indy-shared-gha/.github/actions/workflow-setup@v1
+      - uses: actions/checkout@v4
       - name: testsNeeded
-        id: testsNeeded
+        id: filter
         uses: dorny/paths-filter@v3
         with:
           filters: |
             testsNeeded:
               - '**.py'
               - '.github/**'
-              - 'build-scripts/**'
+              - 'Dockerfile'
+              - 'Dockerfile.base'
               - 'bump_version.sh'
 
-  lint:
-    name: Lint
-    needs: [workflow-setup]
-    if: ${{ needs.workflow-setup.outputs.testsNeeded == 'true' }}
-    uses: hyperledger/indy-shared-gha/.github/workflows/lint.yaml@v1
+  docker-build-base:
+    name: Build Base Image
+    needs: [testsNeeded]
+    if: ${{ needs.testsNeeded.outputs.testsNeeded == 'true' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build base image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.base
+          load: true
+          tags: ${{ env.BASE_IMAGE }}:latest
 
-  build-image:
-    name: Create Builder Image
-    needs: [workflow-setup, lint]
-    uses: hyperledger/indy-shared-gha/.github/workflows/buildimage.yaml@v1
-    with:
-      CACHE_KEY_BUILD: ${{ needs.workflow-setup.outputs.CACHE_KEY_BUILD }}
-      DOCKER_IMAGE: ghcr.io/${{ needs.workflow-setup.outputs.GITHUB_REPOSITORY_NAME }}/node-build
-      UBUNTU_VERSION: ${{ needs.workflow-setup.outputs.UBUNTU_VERSION }}
-
-  build_packages:
-    name: Build Packages
-    needs: [workflow-setup, build-image]
-    uses: hyperledger/indy-shared-gha/.github/workflows/buildpackages.yaml@v1
-    with:
-      DOCKER_IMAGE: ghcr.io/${{ needs.workflow-setup.outputs.GITHUB_REPOSITORY_NAME }}/node-build:${{ needs.workflow-setup.outputs.UBUNTU_VERSION }}
-      UBUNTU_VERSION: ${{ needs.workflow-setup.outputs.UBUNTU_VERSION }}
-      isDev: true
-      isRC: false
-      moduleName: indy_node
+  docker-build:
+    name: Build Production Image
+    needs: [testsNeeded, docker-build-base]
+    if: ${{ needs.testsNeeded.outputs.testsNeeded == 'true' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          tags: ${{ env.PROD_IMAGE }}:latest
 
   indy_node_tests:
     name: Indy Node Tests
-    needs: [workflow-setup, build_packages]
+    needs: [testsNeeded, docker-build]
+    if: ${{ needs.testsNeeded.outputs.testsNeeded == 'true' }}
     uses: ./.github/workflows/reuseable_test.yaml
     with:
-      GITHUB_REPOSITORY_NAME: ${{ needs.workflow-setup.outputs.GITHUB_REPOSITORY_NAME }}
-      UBUNTU_VERSION: ${{ needs.workflow-setup.outputs.UBUNTU_VERSION }}
+      image_tag: ${{ env.PROD_IMAGE }}:latest
 
   statusCheck:
     name: statusCheck
     runs-on: ubuntu-latest
-    needs: [workflow-setup, indy_node_tests]
-    if: ${{ needs.workflow-setup.outputs.testsNeeded == 'false' || success() }}
+    needs: [testsNeeded, indy_node_tests]
+    if: ${{ needs.testsNeeded.outputs.testsNeeded == 'false' || success() }}
     steps:
       - run: 'echo "Just a status Check (Always true, when executed) for branch protection rules(blocks merging while test are running and if tests fail)." '

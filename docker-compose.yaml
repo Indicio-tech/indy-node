@@ -1,0 +1,24 @@
+services:
+  indy-node:
+    image: ghcr.io/hyperledger/indy-node:latest
+    ports:
+      - "${NODE_IP}:${NODE_PORT}:${NODE_PORT}"
+      - "${CLIENT_IP}:${CLIENT_PORT}:${CLIENT_PORT}"
+    volumes:
+      - indy-data:/var/lib/indy
+      - indy-config:/etc/indy
+      - indy-logs:/var/log/indy
+    environment:
+      - NODE_NAME=
+      - NODE_IP=${NODE_IP}
+      - NODE_PORT=${NODE_PORT}
+      - CLIENT_IP=${CLIENT_IP}
+      - CLIENT_PORT=${CLIENT_PORT}
+      - NETWORK_NAME=sandbox
+      - BIND_IP=0.0.0.0
+    restart: unless-stopped
+
+volumes:
+  indy-data:
+  indy-config:
+  indy-logs:

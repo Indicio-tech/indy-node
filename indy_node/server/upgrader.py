@@ -7,22 +7,17 @@ from typing import Optional, Callable, Dict
 import dateutil.parser
 import dateutil.tz
 
-from indy_node.server.node_maintainer import NodeMaintainer, \
-    NodeControlToolMessage
+from indy_node.server.node_maintainer import NodeMaintainer
 from plenum.common.txn_util import is_forced, get_seq_no, get_type, get_payload_data, get_req_id, get_from
 from stp_core.common.log import getlogger
 from plenum.common.constants import VERSION
-from common.version import (
-    SourceVersion, InvalidVersionError
-)
+from common.version import InvalidVersionError
 
 from indy_common.constants import ACTION, POOL_UPGRADE, START, SCHEDULE, \
     CANCEL, JUSTIFICATION, TIMEOUT, NODE_UPGRADE, \
-    UPGRADE_MESSAGE, PACKAGE, APP_NAME, DOCKER_IMAGE, DEFAULT_DOCKER_IMAGE
+    PACKAGE, APP_NAME, DOCKER_IMAGE, DEFAULT_DOCKER_IMAGE
 from indy_common.version import src_version_cls
 from indy_node.server.upgrade_log import UpgradeLogData, UpgradeLog
-from indy_node.utils.node_control_utils import NodeControlUtil
-
 logger = getlogger()
 
 
@@ -34,31 +29,6 @@ class Upgrader(NodeMaintainer):
         self._should_notify_about_upgrade = False
         super().__init__(nodeId, nodeName, dataDir, config, ledger, actionLog,
                          actionFailedCallback, action_start_callback)
-
-    @staticmethod
-    def get_src_version(
-            pkg_name: str = APP_NAME,
-            nocache: bool = False) -> SourceVersion:
-
-        if pkg_name == APP_NAME and not nocache:
-            from indy_node.__metadata__ import __version__
-            return src_version_cls(APP_NAME)(__version__)
-
-        try:
-            curr_pkg_ver, _ = NodeControlUtil.curr_pkg_info(pkg_name)
-            return curr_pkg_ver.upstream if curr_pkg_ver else None
-        except Exception as exc:
-            logger.warning(
-                "{} failed to get package info for {}: {}"
-                .format("Upgrader", pkg_name, exc)
-            )
-            from indy_node.__metadata__ import __version__
-            return src_version_cls(APP_NAME)(__version__)
-
-    @staticmethod
-    def is_version_upgradable(
-            old: SourceVersion, new: SourceVersion, reinstall: bool = False):
-        return (new > old) or (new == old and reinstall)
 
     @staticmethod
     def get_action_id(txn):
@@ -210,15 +180,6 @@ class Upgrader(NodeMaintainer):
             ev_data = lastEventInfo.data
             if ev_data.image_name:
                 return self._did_docker_upgrade_succeed(ev_data)
-            currentPkgVersion = NodeControlUtil.curr_pkg_info(ev_data.pkg_name)[0]
-            if currentPkgVersion:
-                return currentPkgVersion.upstream == ev_data.version
-            else:
-                logger.warning(
-                    "{} failed to get information about package {} "
-                    "scheduled for last upgrade"
-                    .format(self, ev_data.pkg_name)
-                )
         return False
 
     def _did_docker_upgrade_succeed(self, ev_data) -> bool:
@@ -243,49 +204,6 @@ class Upgrader(NodeMaintainer):
                 .format(self, exc)
             )
         return False
-
-    @staticmethod
-    def check_upgrade_possible(
-            pkg_name: str,
-            target_ver: str,
-            reinstall: bool = False
-    ):
-        version_cls = src_version_cls(pkg_name)
-
-        try:
-            target_ver = version_cls(target_ver)
-        except InvalidVersionError:
-            return (
-                "invalid target version {} for version class {}: "
-                .format(target_ver, version_cls)
-            )
-
-        # get current installed package version of pkg_name
-        curr_pkg_ver, cur_deps = NodeControlUtil.curr_pkg_info(pkg_name)
-        if not curr_pkg_ver:
-            return ("package {} is not installed and cannot be upgraded"
-                    .format(pkg_name))
-
-        # TODO weak check
-        if APP_NAME not in pkg_name and all([APP_NAME not in d for d in cur_deps]):
-            return "Package {} doesn't belong to pool".format(pkg_name)
-
-        # compare whether it makes sense to try (target >= current, = for reinstall)
-        if not Upgrader.is_version_upgradable(
-                curr_pkg_ver.upstream, target_ver, reinstall):
-            return "Version {} is not upgradable".format(target_ver)
-
-        # get the most recent version of the package for provided version
-        # TODO request to NodeControlTool since Node likely runs under user
-        # which doesn't have rights to update list of system packages available
-        # target_pkg_ver = NodeControlUtil.get_latest_pkg_version(
-        #    pkg_name, upstream=target_ver)
-
-        # if not target_pkg_ver:
-        #    return ("package {} for target version {} is not found"
-        #            .format(pkg_name, target_ver))
-
-        return None
 
     def handleUpgradeTxn(self, txn) -> None:
         """
@@ -487,29 +405,9 @@ class Upgrader(NodeMaintainer):
             self._schedule(timesUp, self.get_timeout(failTimeout))
             return
 
-        retryLimit = self.retry_limit
-        while retryLimit:
-            try:
-                msg = UpgradeMessage(
-                    version=ev_data.version.full,
-                    pkg_name=ev_data.pkg_name
-                ).toJson()
-                logger.info("Sending message to control tool: {}".format(msg))
-                await self._open_connection_and_send(msg)
-                break
-            except Exception as ex:
-                logger.warning("Failed to communicate to control tool: {}".format(ex))
-                asyncio.sleep(self.retry_timeout)
-                retryLimit -= 1
-        if not retryLimit:
-            self._action_failed(
-                ev_data,
-                reason="problems in communication with node control service")
-            self._unscheduleAction()
-        else:
-            logger.info("Waiting {} minutes for upgrade to be performed".format(failTimeout))
-            timesUp = partial(self._declareTimeoutExceeded, ev_data)
-            self._schedule(timesUp, self.get_timeout(failTimeout))
+        logger.warning("No image_name provided; upgrade cannot proceed without Docker image")
+        self._action_failed(ev_data, reason="no Docker image specified")
+        self._unscheduleAction()
 
     def _declareTimeoutExceeded(self, ev_data: UpgradeLogData):
         """
@@ -585,17 +483,3 @@ class Upgrader(NodeMaintainer):
                               'in the config'.format(diff)
         return True, ''
 
-
-class UpgradeMessage(NodeControlToolMessage):
-    """
-    Data structure that represents request for node update
-    """
-
-    def __init__(self, version: str, pkg_name: str):
-        super().__init__(UPGRADE_MESSAGE)
-        self.version = version
-        self.pkg_name = pkg_name
-
-    def toJson(self):
-        import json
-        return json.dumps(self.__dict__)

@@ -3,10 +3,7 @@ name: "Test Indy Node"
 on:
   workflow_call:
     inputs:
-      GITHUB_REPOSITORY_NAME:
-        required: true
-        type: string
-      UBUNTU_VERSION:
+      image_tag:
         required: true
         type: string
 
@@ -14,66 +11,17 @@ jobs:
   indy_node_tests:
     name: Sliced Module Tests
     runs-on: ubuntu-20.04
-    # Fix for scacap/action-surefire-report out of memory error:
-    # - https://github.com/ScaCap/action-surefire-report/issues/17
     env:
       NODE_OPTIONS: '--max_old_space_size=4096'
-      #SLICE_TOTAL_SLICES needs to match the total number of slices in the matrix strategy.
       SLICE_TOTAL_SLICES: 11
     container:
-      image: ghcr.io/${{ inputs.GITHUB_REPOSITORY_NAME }}/node-build:${{ inputs.UBUNTU_VERSION }}
+      image: ${{ inputs.image_tag }}
     strategy:
       matrix:
         module: [indy_node, indy_common]
-        slice: [1, 2, 3, 4 ,5, 6, 7, 8, 9, 10, 11]
+        slice: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
       fail-fast: false
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      # ===============================================
-      # Caching cannot be used.
-      #  - For some reason as soon as it is enabled
-      #    the test start complaining about zmq missing
-      #    for the plenum install.
-      # -----------------------------------------------
-      # - name: Cache pip
-      #   uses: actions/cache@v4
-      #   with:
-      #     # pip cache on the node-build image is not in the default location.
-      #     # path: ~/.cache/pip
-      #     path: /root/.cache/pip
-      #     key: ${{ runner.os }}-indy-node-pip-${{ hashFiles('**/requirements.txt', '**/setup.py') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-indy-node-pip-
-      - name: Download node deb
-        uses: actions/download-artifact@v4
-        with:
-          name: indy_node-deb
-
-      - name: Install dependencies from deb
-        run: |
-          apt update
-          function getDeps(){
-              echo "$(apt show ${1} 2>/dev/null  | grep -P "Depends: " | sed 's~Depends:~~g;s~(~~g;s~)~~g;s~>~~g;s~<~~g' |tr -d " \t\n\r" | tr "," "\n")";
-          }
-          aptStr=$(dpkg-deb -I $(pwd)/indy-node*.deb | grep -P "Depends: " | sed 's~Depends:~~g;s~(~~g;s~)~~g;s~>~~g;s~<~~g' | tr -d " \t\n\r" | tr "," "\n")
-          nodeStr="$(getDeps $(echo "$aptStr" | grep plenum))"
-          echo "Installing dependancies:" && \
-          echo ${aptStr} && \
-          echo ${fullStr}&& \
-          echo && \
-          apt install -y $(pwd)/indy-node*.deb $aptStr $nodeStr
-          #Libindy till it is set in dependencies
-          apt install -y libindy
-          ln -s /usr/lib/ursa/libursa.so /usr/lib/libursa.so
-        shell: bash
-
-      - name: Install dependencies
-        run: |
-          # Explicitly use the existing pip cache location in the node-build image.
-          pip --cache-dir /root/.cache/pip install .[tests]
-
       - name: Run Indy Node ${{ matrix.module }} test slice ${{ matrix.slice }}/ ${{ env.SLICE_TOTAL_SLICES }}
         id: node-test
         run: RUSTPYTHONASYNCIODEBUG=0 python3 runner.py --pytest "python3 -m pytest -l -vv" --dir "${{ matrix.module }}" --output "test-result-node-${{ matrix.slice }}.txt" --test-only-slice "${{ matrix.slice }}/ ${{ env.SLICE_TOTAL_SLICES }}"
@@ -88,7 +36,6 @@ jobs:
           report_paths: "*-test-results.xml"
 
       - name: Upload Detailed Test Failure Results
-        # The test runner only emits the detailed test results if the tests fail.
         if: (steps.node-test.outcome == 'failure') && failure()
         uses: actions/upload-artifact@v4
         with:
