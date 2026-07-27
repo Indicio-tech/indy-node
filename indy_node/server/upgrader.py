@@ -180,6 +180,7 @@ class Upgrader(NodeMaintainer):
             ev_data = lastEventInfo.data
             if ev_data.image_name:
                 return self._did_docker_upgrade_succeed(ev_data)
+            return True
         return False
 
     def _did_docker_upgrade_succeed(self, ev_data) -> bool:
