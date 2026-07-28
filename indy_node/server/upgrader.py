@@ -340,27 +340,47 @@ class Upgrader(NodeMaintainer):
                 why = "cancellation reason not specified"
 
             ev_data = self.scheduledAction
-            logger.info("Cancelling upgrade {}"
-                        " of node {}"
-                        " of package {}"
-                        " to version {}"
-                        " scheduled on {}"
-                        "{}{}"
-                        .format(ev_data.upgrade_id,
-                                self.nodeName,
-                                ev_data.pkg_name,
-                                ev_data.version,
-                                ev_data.when,
-                                why_prefix,
-                                why))
+            if ev_data.image_name:
+                logger.info("Cancelling upgrade {}"
+                            " of node {}"
+                            " of Docker image {}"
+                            " to version {}"
+                            " scheduled on {}"
+                            "{}{}"
+                            .format(ev_data.upgrade_id,
+                                    self.nodeName,
+                                    ev_data.image_name,
+                                    ev_data.version,
+                                    ev_data.when,
+                                    why_prefix,
+                                    why))
+                self._notifier.sendMessageUponPoolUpgradeCancel(
+                    "Upgrade of Docker image {} on node '{}' to version {} "
+                    "has been cancelled due to {}"
+                    .format(ev_data.image_name, self.nodeName,
+                            ev_data.version, why))
+            else:
+                logger.info("Cancelling upgrade {}"
+                            " of node {}"
+                            " of package {}"
+                            " to version {}"
+                            " scheduled on {}"
+                            "{}{}"
+                            .format(ev_data.upgrade_id,
+                                    self.nodeName,
+                                    ev_data.pkg_name,
+                                    ev_data.version,
+                                    ev_data.when,
+                                    why_prefix,
+                                    why))
+                self._notifier.sendMessageUponPoolUpgradeCancel(
+                    "Upgrade of package {} on node '{}' to version {} "
+                    "has been cancelled due to {}"
+                    .format(ev_data.pkg_name, self.nodeName,
+                            ev_data.version, why))
 
             self._unscheduleAction()
             self._actionLog.append_cancelled(ev_data)
-            self._notifier.sendMessageUponPoolUpgradeCancel(
-                "Upgrade of package {} on node '{}' to version {} "
-                "has been cancelled due to {}"
-                .format(ev_data.pkg_name, self.nodeName,
-                        ev_data.version, why))
 
     def _callUpgradeAgent(self, ev_data, failTimeout) -> None:
         """
@@ -433,17 +453,30 @@ class Upgrader(NodeMaintainer):
                        external_reason=False):
         if reason is None:
             reason = "unknown reason"
-        error_message = (
-            "Node {} failed upgrade {} to "
-            "version {} of package {} "
-            "scheduled on {} because of {}"
-            .format(self.nodeName,
-                    ev_data.upgrade_id,
-                    ev_data.version,
-                    ev_data.pkg_name,
-                    ev_data.when,
-                    reason)
-        )
+        if ev_data.image_name:
+            error_message = (
+                "Node {} failed upgrade {} to "
+                "version {} of Docker image {} "
+                "scheduled on {} because of {}"
+                .format(self.nodeName,
+                        ev_data.upgrade_id,
+                        ev_data.version,
+                        ev_data.image_name,
+                        ev_data.when,
+                        reason)
+            )
+        else:
+            error_message = (
+                "Node {} failed upgrade {} to "
+                "version {} of package {} "
+                "scheduled on {} because of {}"
+                .format(self.nodeName,
+                        ev_data.upgrade_id,
+                        ev_data.version,
+                        ev_data.pkg_name,
+                        ev_data.when,
+                        reason)
+            )
         logger.error(error_message)
         if external_reason:
             logger.error("This problem may have external reasons, "
