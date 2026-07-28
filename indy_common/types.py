@@ -299,6 +299,17 @@ class ClientGetRevocRegDeltaField(MessageValidator):
     )
 
 
+class DockerImageField(FieldBase):
+    _base_types = (str,)
+    _pattern = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._/:@-]*[a-zA-Z0-9])?$')
+
+    def _specific_validation(self, val):
+        if not val:
+            return 'empty string'
+        if not self._pattern.match(val):
+            return '{} is not a valid Docker image reference'.format(val)
+
+
 class ClientPoolUpgradeOperation(MessageValidator):
     schema = (
         (TXN_TYPE, ConstantField(POOL_UPGRADE)),
@@ -389,22 +400,6 @@ class ConstraintListField(MessageValidator):
                                         self).validate(constraint)
             if error_msg:
                 self._raise_invalid_message(error_msg)
-
-
-class DockerImageField(FieldBase):
-    _base_types = (str,)
-    _pattern = re.compile(
-        r'^[a-zA-Z0-9]([a-zA-Z0-9._/-]*[a-zA-Z0-9])?'
-        r'(:[a-zA-Z0-9._-]+)?'
-        r'(@sha256:[a-f0-9]{64})?$'
-    )
-
-    def _specific_validation(self, val):
-        if not val:
-            return 'empty string'
-        if not self._pattern.match(val):
-            return '{} is not a valid Docker image reference'.format(val)
-
 
 class AuthRuleValueField(LimitedLengthStringField):
     _base_types = (str, type(None))
