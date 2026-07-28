@@ -186,6 +186,8 @@ sudo systemctl status indy-node
 
 ## Rollback
 
+### Rollback to Debian Package
+
 If you need to revert to the Debian package installation:
 
 1. Stop and disable the Docker systemd service:
@@ -200,15 +202,47 @@ If you need to revert to the Debian package installation:
    sudo systemctl start indy-node
    ```
 
+### Automatic Rollback on Upgrade Failure
+
+When an upgrade via `POOL_UPGRADE` with the `image` field is performed, the node automatically:
+
+1. **Saves the current image** before pulling the new one (tagged as `indy-node-rollback`).
+2. **Pulls the new image** and recreates the container.
+3. **Performs a health check** by polling `docker inspect` for container state `running`.
+4. **If the health check fails** within the timeout (default 30s), the node automatically:
+   - Re-tags the rollback image to the original image reference.
+   - Restarts the container with `docker compose up -d --force-recreate`.
+   - Logs the rollback as a failed upgrade.
+5. **If the rollback also fails**, a critical error is logged for manual intervention.
+
+The rollback image tag (`indy-node-rollback`) persists locally on the host. To manually trigger a rollback to the previously saved image:
+
+```bash
+docker tag indy-node-rollback ghcr.io/hyperledger/indy-node:latest
+docker compose -f /opt/indy-node/docker-compose.yaml up -d --force-recreate indy-node
+```
+
 ---
 
 ## Upgrading
 
-Once migrated, upgrades are handled via `POOL_UPGRADE` with the `image` field. The node pulls the new Docker image and restarts:
+Once migrated, upgrades are handled via `POOL_UPGRADE` with the `image` field. The node automatically:
+
+1. Verifies Docker daemon availability.
+2. Saves the current image for rollback.
+3. Pulls the new Docker image.
+4. Restarts the container with `docker compose up -d --force-recreate`.
+5. Polls the container state until it reaches `running`.
+6. On health check failure, automatically rolls back to the previous image.
+
+The underlying operations are equivalent to:
 
 ```bash
+docker info
+docker tag $(docker inspect --format '{{.Image}}' indy-node) indy-node-rollback
 docker compose pull indy-node
 docker compose up -d --force-recreate indy-node
+# Health check: poll docker inspect --format '{{.State.Status}}' indy-node for "running"
 ```
 
 This replaces the old `apt-get upgrade` / `dpkg -i` process.

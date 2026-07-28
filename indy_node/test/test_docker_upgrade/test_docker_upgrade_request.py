@@ -15,6 +15,9 @@ def _make_upgrader(tconf, monkeypatch):
     monkeypatch.setattr(upgrader, '_action_failed', lambda ev_data, reason=None, external_reason=False: None)
     monkeypatch.setattr(upgrader, '_unscheduleAction', lambda: None)
     monkeypatch.setattr(upgrader, 'scheduledAction', None)
+    monkeypatch.setattr(upgrader, '_check_docker_available', lambda: None)
+    monkeypatch.setattr(upgrader, '_save_current_image_for_rollback', lambda: None)
+    monkeypatch.setattr(upgrader, '_wait_for_container_healthy', lambda timeout=None: True)
     return upgrader
 
 

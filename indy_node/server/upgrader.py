@@ -1,5 +1,7 @@
 import os
+import subprocess
 import asyncio
+import time
 from datetime import datetime
 from functools import partial
 from typing import Optional, Callable, Dict
@@ -19,6 +21,14 @@ from indy_common.constants import ACTION, POOL_UPGRADE, START, SCHEDULE, \
 from indy_common.version import src_version_cls
 from indy_node.server.upgrade_log import UpgradeLogData, UpgradeLog
 logger = getlogger()
+
+_ROLLBACK_TAG = "indy-node-rollback"
+_DOCKER_INFO_TIMEOUT = 10
+_DOCKER_INSPECT_TIMEOUT = 10
+_DOCKER_PULL_TIMEOUT = 120
+_DOCKER_UP_TIMEOUT = 120
+_DOCKER_HEALTH_POLL_INTERVAL = 2
+_DOCKER_HEALTH_TIMEOUT = 30
 
 
 class Upgrader(NodeMaintainer):
@@ -183,13 +193,111 @@ class Upgrader(NodeMaintainer):
             return True
         return False
 
+    def _wait_for_container_healthy(self, timeout=None):
+        if timeout is None:
+            timeout = _DOCKER_HEALTH_TIMEOUT
+        deadline = time.time() + timeout
+        last_error = None
+        while time.time() < deadline:
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", "--format", "{{.State.Status}}",
+                     self.config.UPGRADE_ENTRY],
+                    capture_output=True, text=True, timeout=_DOCKER_INSPECT_TIMEOUT
+                )
+                if result.returncode == 0:
+                    status = result.stdout.strip()
+                    if status == "running":
+                        logger.info("Container {} is running".format(self.config.UPGRADE_ENTRY))
+                        return True
+                    elif status in ("created", "restarting"):
+                        time.sleep(_DOCKER_HEALTH_POLL_INTERVAL)
+                        continue
+                    else:
+                        raise RuntimeError(
+                            "Container {} is in unexpected state: {}".format(
+                                self.config.UPGRADE_ENTRY, status))
+                else:
+                    last_error = result.stderr.strip()
+                    time.sleep(_DOCKER_HEALTH_POLL_INTERVAL)
+            except Exception as exc:
+                last_error = str(exc)
+                time.sleep(_DOCKER_HEALTH_POLL_INTERVAL)
+        raise RuntimeError(
+            "Container {} did not reach running state within {}s. Last error: {}".format(
+                self.config.UPGRADE_ENTRY, timeout, last_error or "unknown"))
+
+    def _check_docker_available(self):
+        result = subprocess.run(
+            ["docker", "info"],
+            capture_output=True, text=True, timeout=_DOCKER_INFO_TIMEOUT
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Docker is not available: {}. "
+                "Ensure Docker Engine is installed and running."
+                .format(result.stderr.strip()))
+
+    def _save_current_image_for_rollback(self):
+        try:
+            inspect = subprocess.run(
+                ["docker", "inspect", "--format", "{{.Config.Image}}\n{{.Image}}",
+                 self.config.UPGRADE_ENTRY],
+                capture_output=True, text=True, timeout=_DOCKER_INSPECT_TIMEOUT
+            )
+            if inspect.returncode == 0:
+                lines = inspect.stdout.strip().split('\n')
+                if len(lines) >= 2:
+                    current_ref = lines[0]
+                    current_digest = lines[1]
+                    tag_result = subprocess.run(
+                        ["docker", "tag", current_digest, _ROLLBACK_TAG],
+                        capture_output=True, text=True, timeout=_DOCKER_INSPECT_TIMEOUT
+                    )
+                    if tag_result.returncode == 0:
+                        logger.info("Saved current image {} (digest {}) as rollback target".format(
+                            current_ref, current_digest[:19]))
+                        return current_ref
+                    else:
+                        logger.info("Could not tag current image for rollback: {}".format(
+                            tag_result.stderr.strip()))
+                else:
+                    logger.info("Could not parse docker inspect output")
+            else:
+                logger.info("Could not inspect container {}: {}".format(
+                    self.config.UPGRADE_ENTRY, inspect.stderr.strip()))
+        except Exception as exc:
+            logger.info("No previous container to save for rollback: {}".format(exc))
+        return None
+
+    def _rollback_upgrade(self, compose_dir, current_ref):
+        logger.info("Attempting rollback to image {}".format(current_ref or _ROLLBACK_TAG))
+        try:
+            subprocess.run(
+                ["docker", "tag", _ROLLBACK_TAG, current_ref],
+                capture_output=True, text=True, timeout=_DOCKER_INSPECT_TIMEOUT
+            )
+            rollback_up = subprocess.run(
+                ["docker", "compose", "--project-directory", compose_dir,
+                 "up", "-d", "--force-recreate", "indy-node"],
+                capture_output=True, text=True, timeout=_DOCKER_UP_TIMEOUT
+            )
+            if rollback_up.returncode == 0:
+                logger.info("Rollback to {} appears successful".format(current_ref))
+                return True
+            else:
+                logger.error("Rollback also failed: {}".format(rollback_up.stderr.strip()))
+                return False
+        except Exception as rollback_ex:
+            logger.error("Rollback failed: {}".format(rollback_ex))
+            return False
+
     def _did_docker_upgrade_succeed(self, ev_data) -> bool:
         try:
-            import subprocess
             result = subprocess.run(
                 ["docker", "inspect", "--format", "{{.Config.Image}}",
                  self.config.UPGRADE_ENTRY],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=_DOCKER_INSPECT_TIMEOUT
             )
             if result.returncode == 0:
                 running_image = result.stdout.strip()
@@ -404,19 +512,31 @@ class Upgrader(NodeMaintainer):
             logger.info("Performing Docker upgrade to image {}".format(ev_data.image_name))
             compose_dir = self.config.COMPOSE_PROJECT_DIR
             try:
-                import subprocess
+                self._check_docker_available()
+
+                current_ref = self._save_current_image_for_rollback()
+
                 pull = subprocess.run(
                     ["docker", "compose", "--project-directory", compose_dir, "pull", "indy-node"],
-                    capture_output=True, text=True, timeout=120
+                    capture_output=True, text=True, timeout=_DOCKER_PULL_TIMEOUT
                 )
                 if pull.returncode != 0:
                     raise RuntimeError("docker compose pull failed: {}".format(pull.stderr.strip()))
                 up = subprocess.run(
                     ["docker", "compose", "--project-directory", compose_dir, "up", "-d", "--force-recreate", "indy-node"],
-                    capture_output=True, text=True, timeout=120
+                    capture_output=True, text=True, timeout=_DOCKER_UP_TIMEOUT
                 )
                 if up.returncode != 0:
                     raise RuntimeError("docker compose up failed: {}".format(up.stderr.strip()))
+
+                try:
+                    self._wait_for_container_healthy()
+                except Exception as health_ex:
+                    logger.warning("Health check failed after upgrade: {}".format(health_ex))
+                    if current_ref:
+                        self._rollback_upgrade(compose_dir, current_ref)
+                    raise
+
             except Exception as ex:
                 logger.warning("Docker upgrade failed: {}".format(ex))
                 self._action_failed(ev_data, reason=str(ex))
