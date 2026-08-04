@@ -21,19 +21,45 @@ jobs:
           fetch-depth: 0
       - name: extract branch
         id: get-branch
-        uses: hyperledger/indy-shared-gha/.github/actions/branch-from-tag@v1
-        with:
-          tag: ${{ github.ref }}
+        shell: bash
+        run: |
+          raw=$(git branch -r --sort=-committerdate --contains ${{ github.ref }} | head -n 1)
+          branch=${raw//origin\/}
+          echo "branch=${branch}" >> $GITHUB_OUTPUT
       - name: get-release-info
         id: get-release-info
-        uses: hyperledger/indy-shared-gha/.github/actions/get-release-info@v1
-        with:
-          versionString: "${{ github.ref }}"
+        shell: bash
+        run: |
+          version=$(grep -oP "\d+.\d+.\d+((-|.)?rc\d+)?" <<< "${{ github.ref }}" || true)
+          if [[ ! -z ${version} ]]; then
+            versionTag="v${version}"
+            if [[ "${version}" == *'rc'* ]]; then
+              isRC=true
+              component="rc"
+              prBranch=update-rc-version
+            else
+              isRC=false
+              component="stable"
+              prBranch=update-version
+            fi
+            if [[ $(grep -oP "\[v\d+.\d+.\d+(-?rc\d+)?\]" <<< "${{ github.ref }}" || true) ]]; then
+              isVersionBump=true
+            else
+              isVersionBump=false
+            fi
+          fi
+          echo "version=${version}" >> $GITHUB_OUTPUT
+          echo "versionTag=${versionTag}" >> $GITHUB_OUTPUT
+          echo "isRC=${isRC}" >> $GITHUB_OUTPUT
+          echo "component=${component}" >> $GITHUB_OUTPUT
+          echo "prBranch=${prBranch}" >> $GITHUB_OUTPUT
+          echo "isVersionBump=${isVersionBump}" >> $GITHUB_OUTPUT
 
   bump_version:
     name: Bump Version Number
     needs: taginfos
     runs-on: ubuntu-20.04
+    if: ${{ github.repository_owner == 'hyperledger' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -51,7 +77,7 @@ jobs:
 
       - name: Prepare package and set version
         run: |
-          ./bump_version.sh ${{ needs.taginfos.outputs.VERSION }}
+          ./bump_version.sh ${{ needs.taginfos.outputs.version }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6

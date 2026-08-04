@@ -7,8 +7,8 @@ on:
       - "indy_node/__version__.json"
 
 env:
-  BASE_IMAGE: ghcr.io/hyperledger/indy-node-base
-  PROD_IMAGE: ghcr.io/hyperledger/indy-node
+  BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/indy-node-base
+  PROD_IMAGE: ghcr.io/${{ github.repository_owner }}/indy-node
 
 jobs:
   release-infos:
@@ -22,9 +22,32 @@ jobs:
         uses: actions/checkout@v4
       - name: get-release-info
         id: get-release-info
-        uses: hyperledger/indy-shared-gha/.github/actions/get-release-info@v1
-        with:
-          versionString: "${{ github.event.pull_request.body }}"
+        shell: bash
+        run: |
+          version=$(grep -oP "\d+.\d+.\d+((-|.)?rc\d+)?" <<< "${{ github.event.pull_request.body }}" || true)
+          if [[ ! -z ${version} ]]; then
+            versionTag="v${version}"
+            if [[ "${version}" == *'rc'* ]]; then
+              isRC=true
+              component="rc"
+              prBranch=update-rc-version
+            else
+              isRC=false
+              component="stable"
+              prBranch=update-version
+            fi
+            if [[ $(grep -oP "\[v\d+.\d+.\d+(-?rc\d+)?\]" <<< "${{ github.event.pull_request.body }}" || true) ]]; then
+              isVersionBump=true
+            else
+              isVersionBump=false
+            fi
+          fi
+          echo "version=${version}" >> $GITHUB_OUTPUT
+          echo "versionTag=${versionTag}" >> $GITHUB_OUTPUT
+          echo "isRC=${isRC}" >> $GITHUB_OUTPUT
+          echo "component=${component}" >> $GITHUB_OUTPUT
+          echo "prBranch=${prBranch}" >> $GITHUB_OUTPUT
+          echo "isVersionBump=${isVersionBump}" >> $GITHUB_OUTPUT
 
   docker-build-base:
     name: Build Base Image

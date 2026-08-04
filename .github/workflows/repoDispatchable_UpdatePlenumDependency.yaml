@@ -5,8 +5,8 @@ on:
     types: [update-node]
 
 env:
-  BASE_IMAGE: ghcr.io/hyperledger/indy-node-base
-  PROD_IMAGE: ghcr.io/hyperledger/indy-node
+  BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/indy-node-base
+  PROD_IMAGE: ghcr.io/${{ github.repository_owner }}/indy-node
 
 jobs:
   rebuild-docker:
@@ -27,7 +27,7 @@ jobs:
           file: Dockerfile.base
           push: true
           build-args: |
-            PLENUM_BASE_IMAGE=ghcr.io/hyperledger/indy-plenum-base:${{ github.event.client_payload.dockerTag }}
+            PLENUM_BASE_IMAGE=ghcr.io/${{ github.event.client_payload.dockerOwner || 'hyperledger' }}/indy-plenum-base:${{ github.event.client_payload.dockerTag }}
           tags: ${{ env.BASE_IMAGE }}:latest
 
       - name: Build and push production image
