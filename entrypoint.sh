@@ -2,7 +2,7 @@
 set -e
 
 _term() {
-    echo "Caught SIGTERM, shutting down..."
+    echo "Caught SIGTERM, shutting down node..."
     kill -TERM "$child" 2>/dev/null
     wait "$child" 2>/dev/null
 }
@@ -30,4 +30,8 @@ chown -R indy:indy /var/lib/indy /etc/indy /var/log/indy 2>/dev/null || true
 : "${CLIENT_IP:?CLIENT_IP is required}"
 : "${CLIENT_PORT:?CLIENT_PORT is required}"
 
+echo "Starting node control tool (health + restart)..."
+python3 /app/scripts/start_node_control_tool --daemon &
+
+echo "Starting indy node..."
 exec start_indy_node "$NODE_NAME" "$NODE_IP" "$NODE_PORT" "$CLIENT_IP" "$CLIENT_PORT"
