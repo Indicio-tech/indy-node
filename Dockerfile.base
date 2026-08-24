@@ -1,9 +1,4 @@
-ARG PLENUM_BASE_IMAGE=ghcr.io/hyperledger/indy-plenum-base:latest
+ARG PLENUM_BASE_IMAGE=indy-plenum-base:latest
 FROM ${PLENUM_BASE_IMAGE}
 
-RUN pip3 install indy-plenum==1.13.1 timeout-decorator>=0.5.0 distro==1.7.0
-
-# The published indy-plenum==1.13.1 pins sortedcontainers==1.5.7 which is
-# incompatible with Python 3.10+ (uses deprecated collections.Sequence).
-# Current source requires sortedcontainers==2.1.0.
-RUN pip3 install "sortedcontainers>=2.1.0,<3"
+RUN pip3 install timeout-decorator>=0.5.0 distro==1.7.0
