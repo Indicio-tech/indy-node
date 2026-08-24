@@ -7,8 +7,8 @@ WORKDIR /app
 COPY . .
 
 RUN mkdir -p /var/lib/indy /etc/indy /var/log/indy && \
-    pip3 install .[tests] && \
-    pip3 install "sortedcontainers>=2.1.0,<3" "rlp>=2.0.0,<3" && \
+    pip3 install --no-deps . && \
+    pip3 install --no-deps .[tests] && \
     chown -R indy:indy /app /var/lib/indy /etc/indy /var/log/indy
 
 COPY entrypoint.sh /entrypoint.sh
