@@ -1,0 +1,82 @@
+name: Start Release
+
+on:
+  push:
+    tags:
+      - 'setRelease-v*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    name: Create Version Bump PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse version from tag
+        id: version
+        shell: bash
+        run: |
+          RAW="${GITHUB_REF#refs/tags/setRelease-v}"
+          VERSION="${RAW}"
+          VERSION_TAG="v${RAW}"
+          IS_RC="false"
+          if [[ "${RAW}" == *"rc"* ]]; then
+            IS_RC="true"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
+          echo "is_rc=${IS_RC}" >> $GITHUB_OUTPUT
+
+      - name: Determine branch
+        id: branch
+        shell: bash
+        run: |
+          if [[ "${{ steps.version.outputs.is_rc }}" == "true" ]]; then
+            echo "branch=update-rc-version" >> $GITHUB_OUTPUT
+          else
+            echo "branch=update-version" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get base branch
+        id: base
+        shell: bash
+        run: |
+          raw=$(git branch -r --sort=-committerdate --contains ${{ github.ref }} | head -n 1)
+          branch=${raw//origin\/}
+          echo "branch=${branch}" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Install deps
+        run: |
+          pip install packaging \
+            wheel \
+            importlib_metadata==3.10.1
+
+      - name: Bump version
+        run: ./bump_version.sh ${{ steps.version.outputs.version }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          author: ${{ github.actor }} <${{ github.event.pusher.email }}>
+          committer: ${{ github.actor }} <${{ github.event.pusher.email }}>
+          signoff: true
+          commit-message: "chore: bump version to ${{ steps.version.outputs.version_tag }}"
+          base: ${{ steps.base.outputs.branch }}
+          branch: ${{ steps.branch.outputs.branch }}
+          title: "${{ steps.version.outputs.version_tag }} - Release"
+          body: |
+            ## Release ${{ steps.version.outputs.version_tag }}
+
+            Version bump to ${{ steps.version.outputs.version }}.
+          delete-branch: true
+          token: ${{ secrets.BOT_PR_PAT }}

@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - '**.py'
+      - 'Dockerfile'
+      - 'Dockerfile.base'
+      - '.github/**'
+      - 'bump_version.sh'
+
+jobs:
+  build-base:
+    name: Build Base Image
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image variables
+        id: vars
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build base image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.base
+          push: ${{ github.event_name == 'push' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ghcr.io/${{ steps.vars.outputs.owner }}/indy-node-base:latest
+
+  build:
+    name: Build Production Image
+    needs: [build-base]
+    runs-on: ubuntu-22.04
+    outputs:
+      image_tag: ${{ steps.image.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image variables
+        id: vars
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build production image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ github.event_name == 'push' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ghcr.io/${{ steps.vars.outputs.owner }}/indy-node:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ steps.vars.outputs.owner }}/indy-node-base:latest
+
+      - name: Set image tag output
+        id: image
+        run: echo "image_tag=ghcr.io/${{ steps.vars.outputs.owner }}/indy-node:latest" >> $GITHUB_OUTPUT
+
+  test:
+    name: Test Node
+    needs: [build]
+    uses: ./.github/workflows/reuseable_test.yaml
+    with:
+      image_tag: ${{ needs.build.outputs.image_tag }}
