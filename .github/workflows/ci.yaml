@@ -27,13 +27,41 @@ jobs:
 
       - name: Set image variables
         id: vars
-        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          owner=$(echo "$REPO_OWNER" | tr '[:upper:]' '[:lower:]')
+          echo "owner=${owner}" >> $GITHUB_OUTPUT
 
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve plenum base image
+        id: plenum
+        env:
+          OWNER: ${{ steps.vars.outputs.owner }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # If user specified an override via workflow_dispatch, use it
+          if [ -n "${{ inputs.plenum_base_image }}" ]; then
+            echo "image=${{ inputs.plenum_base_image }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check fork owner's GHCR first, then fall back to hyperledger
+          for ns in "${OWNER}" "hyperledger"; do
+            if curl -sf -H "Authorization: Bearer ${GHCR_TOKEN}" \
+                 "https://ghcr.io/v2/${ns}/indy-plenum-base/manifests/latest" \
+                 -H "Accept: application/vnd.oci.image.index.v1+json" >/dev/null 2>&1; then
+              echo "image=ghcr.io/${ns}/indy-plenum-base:latest" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
+
+          echo "image=ghcr.io/hyperledger/indy-plenum-base:latest" >> $GITHUB_OUTPUT
 
       - name: Build base image
         uses: docker/build-push-action@v5
@@ -43,7 +71,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           load: ${{ github.event_name == 'pull_request' }}
           tags: ghcr.io/${{ steps.vars.outputs.owner }}/indy-node-base:latest
-          build-args: ${{ inputs.plenum_base_image != '' && format('PLENUM_BASE_IMAGE={0}', inputs.plenum_base_image) || '' }}
+          build-args: PLENUM_BASE_IMAGE=${{ steps.plenum.outputs.image }}
 
   build:
     name: Build Production Image
