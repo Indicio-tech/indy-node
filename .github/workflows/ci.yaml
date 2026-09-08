@@ -11,6 +11,13 @@ on:
       - '.github/**'
       - 'bump_version.sh'
 
+  workflow_dispatch:
+    inputs:
+      plenum_base_image:
+        description: 'Plenum base image (e.g. ghcr.io/owner/indy-plenum-base:tag)'
+        required: false
+        default: ''
+
 jobs:
   build-base:
     name: Build Base Image
@@ -37,6 +44,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           load: ${{ github.event_name == 'pull_request' }}
           tags: ghcr.io/${{ steps.vars.outputs.owner }}/indy-node-base:latest
+          build-args: ${{ inputs.plenum_base_image != '' && format('PLENUM_BASE_IMAGE={0}', inputs.plenum_base_image) || '' }}
 
   build:
     name: Build Production Image
