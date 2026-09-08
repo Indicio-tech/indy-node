@@ -1,4 +1,4 @@
-ARG PLENUM_BASE_IMAGE=indy-plenum-base:latest
+ARG PLENUM_BASE_IMAGE=ghcr.io/hyperledger/indy-plenum-base:latest
 FROM ${PLENUM_BASE_IMAGE}
 
 RUN pip3 install "indicio-indy-plenum>=1.13.2rc15" timeout-decorator>=0.5.0 distro==1.7.0
