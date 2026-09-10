@@ -20,12 +20,14 @@ on:
 
 permissions:
   contents: read
-  packages: read
+  packages: write
 
 jobs:
   build-base:
     name: Build Base Image
     runs-on: ubuntu-22.04
+    outputs:
+      base_image: ${{ steps.vars.outputs.base_image_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -33,9 +35,19 @@ jobs:
         id: vars
         env:
           REPO_OWNER: ${{ github.repository_owner }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           owner=$(echo "$REPO_OWNER" | tr '[:upper:]' '[:lower:]')
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            tag="pr-${PR_NUMBER}-$(echo "$COMMIT_SHA" | head -c 7)"
+          else
+            tag="sha-$(echo "$COMMIT_SHA" | head -c 12)"
+          fi
           echo "owner=${owner}" >> $GITHUB_OUTPUT
+          echo "base_image_tag=ghcr.io/${owner}/indy-node-base:${tag}" >> $GITHUB_OUTPUT
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
 
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
@@ -55,15 +67,21 @@ jobs:
             echo "image=ghcr.io/${OWNER}/indy-plenum-base:latest" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build base image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push base image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile.base
-          push: ${{ github.event_name == 'push' }}
-          load: ${{ github.event_name == 'pull_request' }}
-          tags: ghcr.io/${{ steps.vars.outputs.owner }}/indy-node-base:latest
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.base_image_tag }}
+            ${{ github.event_name == 'push' && format('ghcr.io/{0}/indy-node-base:latest', steps.vars.outputs.owner) || '' }}
           build-args: PLENUM_BASE_IMAGE=${{ steps.plenum.outputs.image }}
+          cache-from: type=gha,scope=pr-${{ github.event.pull_request.number || 'main' }}
+          cache-to: type=gha,mode=max,scope=pr-${{ github.event.pull_request.number || 'main' }}
 
   build:
     name: Build Production Image
@@ -76,7 +94,20 @@ jobs:
 
       - name: Set image variables
         id: vars
-        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          owner=$(echo "$REPO_OWNER" | tr '[:upper:]' '[:lower:]')
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            tag="pr-${PR_NUMBER}-$(echo "$COMMIT_SHA" | head -c 7)"
+          else
+            tag="sha-$(echo "$COMMIT_SHA" | head -c 12)"
+          fi
+          echo "owner=${owner}" >> $GITHUB_OUTPUT
+          echo "image_tag=ghcr.io/${owner}/indy-node:${tag}" >> $GITHUB_OUTPUT
 
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
@@ -85,19 +116,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build production image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push production image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
-          push: ${{ github.event_name == 'push' }}
-          load: ${{ github.event_name == 'pull_request' }}
-          tags: ghcr.io/${{ steps.vars.outputs.owner }}/indy-node:latest
-          build-args: BASE_IMAGE=ghcr.io/${{ steps.vars.outputs.owner }}/indy-node-base:latest
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.image_tag }}
+            ${{ github.event_name == 'push' && format('ghcr.io/{0}/indy-node:latest', steps.vars.outputs.owner) || '' }}
+          build-args: BASE_IMAGE=${{ needs.build-base.outputs.base_image }}
+          cache-from: type=gha,scope=pr-${{ github.event.pull_request.number || 'main' }}
+          cache-to: type=gha,mode=max,scope=pr-${{ github.event.pull_request.number || 'main' }}
 
       - name: Set image tag output
         id: image
-        run: echo "image_tag=ghcr.io/${{ steps.vars.outputs.owner }}/indy-node:latest" >> $GITHUB_OUTPUT
+        run: echo "image_tag=${{ steps.vars.outputs.image_tag }}" >> $GITHUB_OUTPUT
 
   test:
     name: Test Node
