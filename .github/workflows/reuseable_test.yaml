@@ -10,7 +10,7 @@ on:
 jobs:
   indy_node_tests:
     name: Sliced Module Tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       NODE_OPTIONS: '--max_old_space_size=4096'
       SLICE_TOTAL_SLICES: 11
