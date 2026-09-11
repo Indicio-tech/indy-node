@@ -16,6 +16,7 @@ jobs:
       SLICE_TOTAL_SLICES: 11
     container:
       image: ${{ inputs.image_tag }}
+      options: --entrypoint=""
     strategy:
       matrix:
         module: [indy_node, indy_common]
