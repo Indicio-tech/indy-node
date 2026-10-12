@@ -16,7 +16,7 @@ NODE_INFO_STALE_SECONDS = 300
 
 
 class NodeControlTool:
-    def __init__(self, config=None):
+    def __init__(self, config=None, **kwargs):
         self.config = config
         self._load_config()
         self._listen()
@@ -41,6 +41,7 @@ class NodeControlTool:
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.setblocking(0)
         self.server.bind((self.host, self.port))
+        self.port = self.server.getsockname()[1]
         self.server.listen(5)
         logger.info('Node control tool listening on {} port {}'.format(
             self.host, self.port))
@@ -94,12 +95,12 @@ class NodeControlTool:
         return response
 
     def _handle_restart(self):
-        logger.info('Restart requested, sending SIGTERM to PID 1')
-        try:
-            os.kill(1, signal.SIGTERM)
-        except ProcessLookupError:
-            logger.warning('PID 1 not found')
+        logger.info('Restart requested')
+        self._restart()
         return {'status': 'ok', 'message': 'restart signal sent'}
+
+    def _restart(self):
+        os.kill(1, signal.SIGTERM)
 
     def _process_data(self, data):
         try:
@@ -114,6 +115,9 @@ class NodeControlTool:
             return self._handle_restart()
         else:
             return {'status': 'error', 'message': 'unknown command: {}'.format(msg_type)}
+
+    def _do_migration(self, *args, **kwargs):
+        pass
 
     def start(self):
         readers = [self.server]

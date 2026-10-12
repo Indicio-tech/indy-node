@@ -32,7 +32,7 @@ class UpgradeLogData(ActionLogData):
         self.version = version
         self.upgrade_id = upgrade_id
         self.pkg_name = pkg_name
-        self.image_name = image_name
+        self.image_name = image_name or None
 
 
 class UpgradeLog(ActionLog):

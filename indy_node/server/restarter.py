@@ -19,10 +19,19 @@ logger = getlogger()
 
 
 class Restarter(NodeMaintainer):
+    _node_control_tool = None
 
     def _defaultLog(self, dataDir, config):
         log = os.path.join(dataDir, config.restartLogFile)
         return RestartLog(file_path=log)
+
+    def _restart(self):
+        if Restarter._node_control_tool is not None:
+            Restarter._node_control_tool._restart()
+        else:
+            from indy_node.utils.node_control_tool import NodeControlTool
+            tool = NodeControlTool()
+            tool._restart()
 
     def _is_action_started(self):
         last_action = self.lastActionEventInfo
@@ -92,14 +101,9 @@ class Restarter(NodeMaintainer):
         now = datetime.utcnow().replace(tzinfo=dateutil.tz.tzutc())
         if when is None or now >= when:
             try:
-                import subprocess
-                logger.info("Restarting Docker container indy-node immediately")
-                subprocess.run(
-                    ["docker", "compose", "restart", "indy-node"],
-                    capture_output=True, text=True, timeout=30, check=True
-                )
+                self._restart()
             except Exception as ex:
-                logger.warning("Docker restart failed: {}".format(ex))
+                logger.warning("Restart failed: {}".format(ex))
             return
 
         if fail_timeout is None:
@@ -190,14 +194,7 @@ class Restarter(NodeMaintainer):
 
     async def _sendUpdateRequest(self, ev_data: RestartLogData, failTimeout):
         try:
-            import subprocess
-            logger.info("Restarting Docker container indy-node")
-            result = subprocess.run(
-                ["docker", "compose", "restart", "indy-node"],
-                capture_output=True, text=True, timeout=30
-            )
-            if result.returncode != 0:
-                raise RuntimeError("docker compose restart failed: {}".format(result.stderr.strip()))
+            self._restart()
         except Exception as ex:
             logger.warning("Docker restart failed: {}".format(ex))
             self._action_failed(ev_data, reason=str(ex))
