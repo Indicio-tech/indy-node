@@ -8,7 +8,8 @@ from indy_node.server.upgrader import Upgrader
 whitelist = ['failed upgrade', 'No Docker image specified']
 
 
-def _make_upgrader(tconf, monkeypatch):
+def _make_upgrader(tconf, monkeypatch, compose_dir):
+    monkeypatch.setattr(tconf, 'COMPOSE_PROJECT_DIR', compose_dir)
     data_dir = tempfile.mkdtemp()
     upgrader = Upgrader(nodeId=None, nodeName=None, dataDir=data_dir, config=tconf, ledger=None)
     monkeypatch.setattr(upgrader, '_schedule', lambda cb, delay: None)
@@ -29,8 +30,8 @@ def _make_result(returncode=0, stdout='', stderr=''):
     return r
 
 
-def test_docker_upgrade_pull_fails(looper, tconf, monkeypatch):
-    upgrader = _make_upgrader(tconf, monkeypatch)
+def test_docker_upgrade_pull_fails(looper, tconf, monkeypatch, compose_dir):
+    upgrader = _make_upgrader(tconf, monkeypatch, compose_dir)
     monkeypatch.setattr(subprocess, 'run', lambda *args, **kwargs: _make_result(returncode=1, stderr='pull error'))
 
     action_failed_called = []
@@ -43,8 +44,8 @@ def test_docker_upgrade_pull_fails(looper, tconf, monkeypatch):
     assert 'pull failed' in action_failed_called[0]
 
 
-def test_docker_upgrade_up_fails(looper, tconf, monkeypatch):
-    upgrader = _make_upgrader(tconf, monkeypatch)
+def test_docker_upgrade_up_fails(looper, tconf, monkeypatch, compose_dir):
+    upgrader = _make_upgrader(tconf, monkeypatch, compose_dir)
 
     call_count = [0]
     def _run(*args, **kwargs):
@@ -64,8 +65,8 @@ def test_docker_upgrade_up_fails(looper, tconf, monkeypatch):
     assert 'up failed' in action_failed_called[0]
 
 
-def test_docker_upgrade_success(looper, tconf, monkeypatch):
-    upgrader = _make_upgrader(tconf, monkeypatch)
+def test_docker_upgrade_success(looper, tconf, monkeypatch, compose_dir):
+    upgrader = _make_upgrader(tconf, monkeypatch, compose_dir)
     monkeypatch.setattr(subprocess, 'run', lambda *args, **kwargs: _make_result(returncode=0))
 
     times_up_called = []
@@ -77,8 +78,8 @@ def test_docker_upgrade_success(looper, tconf, monkeypatch):
     assert len(times_up_called) == 1
 
 
-def test_docker_upgrade_no_image(looper, tconf, monkeypatch):
-    upgrader = _make_upgrader(tconf, monkeypatch)
+def test_docker_upgrade_no_image(looper, tconf, monkeypatch, compose_dir):
+    upgrader = _make_upgrader(tconf, monkeypatch, compose_dir)
 
     action_failed_called = []
     monkeypatch.setattr(upgrader, '_action_failed', lambda ev_data, reason=None, external_reason=False: action_failed_called.append(reason))

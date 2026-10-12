@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import asyncio
 import time
@@ -23,6 +24,42 @@ from indy_node.server.upgrade_log import UpgradeLogData, UpgradeLog
 logger = getlogger()
 
 _ROLLBACK_TAG = "indy-node-rollback"
+_COMPOSE_SERVICE = "indy-node"
+
+
+def _set_compose_service_image(compose_dir, image, service=_COMPOSE_SERVICE):
+    """
+    Rewrite the `image:` value of `service` in compose_dir's docker-compose
+    file in place. `docker compose up` resolves the image strictly from what
+    the compose file says, so pull/up-ing the right image - and rolling
+    back to the prior one - both require this file to actually be updated;
+    re-tagging an image under its old name on its own has no effect on what
+    compose will run.
+    """
+    for name in ("docker-compose.yaml", "docker-compose.yml"):
+        compose_path = os.path.join(compose_dir, name)
+        if os.path.isfile(compose_path):
+            break
+    else:
+        raise RuntimeError(
+            "No docker-compose.yaml/yml found in {}".format(compose_dir))
+
+    with open(compose_path) as f:
+        content = f.read()
+
+    pattern = re.compile(
+        r'(^[ \t]*{}:[ \t]*\n(?:^[ \t]+.*\n)*?^[ \t]*image:[ \t]*)\S+'.format(
+            re.escape(service)),
+        re.MULTILINE)
+    new_content, count = pattern.subn(
+        lambda m: m.group(1) + image, content, count=1)
+    if count == 0:
+        raise RuntimeError(
+            "Could not find 'image:' for service '{}' in {}".format(
+                service, compose_path))
+
+    with open(compose_path, 'w') as f:
+        f.write(new_content)
 _DOCKER_INFO_TIMEOUT = 10
 _DOCKER_INSPECT_TIMEOUT = 10
 _DOCKER_PULL_TIMEOUT = 120
@@ -318,6 +355,7 @@ class Upgrader(NodeMaintainer):
                 ["docker", "tag", _ROLLBACK_TAG, current_ref],
                 capture_output=True, text=True, timeout=_DOCKER_INSPECT_TIMEOUT
             )
+            _set_compose_service_image(compose_dir, current_ref)
             rollback_up = subprocess.run(
                 ["docker", "compose", "--project-directory", compose_dir,
                  "up", "-d", "--force-recreate", "indy-node"],
@@ -556,6 +594,8 @@ class Upgrader(NodeMaintainer):
                 self._check_docker_available()
 
                 current_ref = self._save_current_image_for_rollback()
+
+                _set_compose_service_image(compose_dir, ev_data.image_name)
 
                 pull = subprocess.run(
                     ["docker", "compose", "--project-directory", compose_dir, "pull", "indy-node"],

@@ -60,7 +60,7 @@ def test_save_current_image_tag_fails(tconf, monkeypatch):
     assert result is None
 
 
-def test_rollback_success(tconf, monkeypatch):
+def test_rollback_success(tconf, monkeypatch, compose_dir):
     upgrader = _make_upgrader(tconf)
     call_log = []
 
@@ -70,14 +70,14 @@ def test_rollback_success(tconf, monkeypatch):
         return _make_result(returncode=0)
 
     monkeypatch.setattr(subprocess, 'run', _run)
-    result = upgrader._rollback_upgrade('/opt/indy-node', 'ghcr.io/hyperledger/indy-node:latest')
+    result = upgrader._rollback_upgrade(compose_dir, 'ghcr.io/hyperledger/indy-node:latest')
 
     assert result is True
     assert any('tag' in str(c) and _ROLLBACK_TAG in str(c) for c in call_log)
     assert any('compose' in str(c) and 'up' in str(c) for c in call_log)
 
 
-def test_rollback_tag_fails(tconf, monkeypatch):
+def test_rollback_tag_fails(tconf, monkeypatch, compose_dir):
     upgrader = _make_upgrader(tconf)
     call_count = [0]
 
@@ -88,12 +88,12 @@ def test_rollback_tag_fails(tconf, monkeypatch):
         return _make_result(returncode=0)
 
     monkeypatch.setattr(subprocess, 'run', _run)
-    result = upgrader._rollback_upgrade('/opt/indy-node', 'img:latest')
+    result = upgrader._rollback_upgrade(compose_dir, 'img:latest')
 
     assert result is True
 
 
-def test_rollback_up_fails(tconf, monkeypatch):
+def test_rollback_up_fails(tconf, monkeypatch, compose_dir):
     upgrader = _make_upgrader(tconf)
     call_count = [0]
 
@@ -104,21 +104,22 @@ def test_rollback_up_fails(tconf, monkeypatch):
         return _make_result(returncode=1, stderr='compose up failed')
 
     monkeypatch.setattr(subprocess, 'run', _run)
-    result = upgrader._rollback_upgrade('/opt/indy-node', 'img:latest')
+    result = upgrader._rollback_upgrade(compose_dir, 'img:latest')
 
     assert result is False
 
 
-def test_rollback_exception(tconf, monkeypatch):
+def test_rollback_exception(tconf, monkeypatch, compose_dir):
     upgrader = _make_upgrader(tconf)
     def _raise(*args, **kwargs):
         raise RuntimeError('docker error')
     monkeypatch.setattr(subprocess, 'run', _raise)
-    result = upgrader._rollback_upgrade('/opt/indy-node', 'img:latest')
+    result = upgrader._rollback_upgrade(compose_dir, 'img:latest')
     assert result is False
 
 
-def test_send_upgrade_request_rollback_on_health_fail(looper, tconf, monkeypatch):
+def test_send_upgrade_request_rollback_on_health_fail(looper, tconf, monkeypatch, compose_dir):
+    monkeypatch.setattr(tconf, 'COMPOSE_PROJECT_DIR', compose_dir)
     data_dir = tempfile.mkdtemp()
     upgrader = Upgrader(nodeId=None, nodeName=None, dataDir=data_dir, config=tconf, ledger=None)
     monkeypatch.setattr(upgrader, '_schedule', lambda cb, delay: None)
@@ -144,5 +145,5 @@ def test_send_upgrade_request_rollback_on_health_fail(looper, tconf, monkeypatch
     looper.run(upgrader._sendUpgradeRequest(ev_data, 10))
 
     assert len(rollback_called) == 1
-    assert rollback_called[0] == ('/opt/indy-node', 'img:latest')
+    assert rollback_called[0] == (compose_dir, 'img:latest')
     assert len(action_failed_called) == 1
