@@ -3,7 +3,7 @@ from typing import Optional
 from indy_common.authorize.auth_actions import AuthActionAdd, AuthActionEdit
 
 from indy_common.constants import CONFIG_LEDGER_ID, POOL_UPGRADE, \
-    ACTION, CANCEL, START, SCHEDULE, DOCKER_IMAGE, PACKAGE
+    ACTION, CANCEL, START, SCHEDULE, DOCKER_IMAGE, PACKAGE, REINSTALL
 
 from indy_common.authorize.auth_request_validator import WriteRequestValidator
 from indy_node.server.upgrader import Upgrader
@@ -76,6 +76,19 @@ class PoolUpgradeHandler(WriteRequestHandler):
                 req_id,
                 "Upgrade '{}' is already scheduled".format(
                     operation.get(NAME)))
+
+        if action == START:
+            requested_version = operation.get(VERSION)
+            current_version = Upgrader._get_current_pkg_version()
+            reinstall = str(operation.get(REINSTALL)) == 'True'
+            if current_version and requested_version:
+                if not Upgrader._is_upgradable(
+                        requested_version, current_version, reinstall):
+                    raise InvalidClientRequest(
+                        identifier,
+                        req_id,
+                        "Version {} is not upgradable".format(requested_version))
+
         if status == '*':
             auth_action = AuthActionAdd(txn_type=POOL_UPGRADE,
                                         field=ACTION,

@@ -9,6 +9,7 @@ from plenum.test.helper import randomText
 
 from indy_common.constants import START, FORCE, APP_NAME
 
+from indy_node.server.upgrader import Upgrader
 from indy_node.test import waits
 from indy_node.test.upgrade.helper import bumpedVersion, \
     checkUpgradeScheduled, bumpVersion, sdk_ensure_upgrade_sent
@@ -24,6 +25,16 @@ def nodeIds(nodeSet):
 ])
 def pckg(request):
     return request.param
+
+
+@pytest.fixture(scope='function', autouse=True)
+def patch_current_pkg_version(monkeypatch, pckg):
+    # These tests drive their own fictional package version chain (starting
+    # at pckg[1]), unrelated to the real installed indy-node version. Pin the
+    # "current version" the downgrade check compares against to that chain,
+    # so legitimate test upgrades aren't mistaken for downgrades.
+    monkeypatch.setattr(
+        Upgrader, '_get_current_pkg_version', staticmethod(lambda: pckg[1]))
 
 
 @pytest.fixture(scope='function')

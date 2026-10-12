@@ -41,6 +41,39 @@ class Upgrader(NodeMaintainer):
                          actionFailedCallback, action_start_callback)
 
     @staticmethod
+    def _get_current_pkg_version():
+        import json
+        version_file = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            '__version__.json'
+        )
+        try:
+            with open(version_file) as f:
+                v = json.load(f)
+            return '{}.{}.{}'.format(v[0], v[1], v[2])
+        except Exception as exc:
+            logger.warning("Failed to read version from {}: {}".format(
+                version_file, exc))
+            return None
+
+    @staticmethod
+    def _is_upgradable(requested_version, current_version, reinstall=False):
+        try:
+            from packaging.version import Version
+            requested = Version(requested_version)
+            current = Version(current_version)
+        except Exception:
+            logger.warning(
+                "Could not compare versions: requested={}, current={}".format(
+                    requested_version, current_version))
+            return True
+        if requested < current:
+            return False
+        if requested == current and not reinstall:
+            return False
+        return True
+
+    @staticmethod
     def get_action_id(txn):
         seq_no = get_seq_no(txn) or ''
         if is_forced(txn):
@@ -190,7 +223,15 @@ class Upgrader(NodeMaintainer):
             ev_data = lastEventInfo.data
             if ev_data.image_name:
                 return self._did_docker_upgrade_succeed(ev_data)
-            return True
+            currentPkgVersion = self._get_current_pkg_version()
+            if currentPkgVersion:
+                return currentPkgVersion == str(ev_data.version)
+            else:
+                logger.warning(
+                    "{} failed to get information about package {} "
+                    "scheduled for last upgrade"
+                    .format(self, ev_data.pkg_name)
+                )
         return False
 
     def _wait_for_container_healthy(self, timeout=None):
