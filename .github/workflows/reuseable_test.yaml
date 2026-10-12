@@ -16,7 +16,7 @@ jobs:
       SLICE_TOTAL_SLICES: 11
     container:
       image: ${{ inputs.image_tag }}
-      options: --entrypoint=""
+      options: --entrypoint="" --shm-size=256m --ulimit nofile=65536:65536
     strategy:
       matrix:
         module: [indy_node, indy_common]
