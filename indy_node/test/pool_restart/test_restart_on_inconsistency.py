@@ -2,6 +2,7 @@ import multiprocessing
 
 import pytest
 
+from indy_node.server.restarter import Restarter
 from indy_node.test.upgrade.helper import NodeControlToolExecutor, nodeControlGeneralMonkeypatching
 from stp_core.loop.eventually import eventually
 
@@ -33,6 +34,7 @@ def test_restart_on_inconsistency(looper, txnPoolNodeSet, tconf, tdir, monkeypat
             assert restarted.value == value
 
     nct = NodeControlToolExecutor(backup_dir=tdir, backup_target=tdir, transform=transform, config=tconf)
+    Restarter._node_control_tool = nct.tool
     try:
         # Trigger inconsistent 3PC state event
         txnPoolNodeSet[0].on_inconsistent_3pc_state()
@@ -44,6 +46,7 @@ def test_restart_on_inconsistency(looper, txnPoolNodeSet, tconf, tdir, monkeypat
         # Ensure we restart eventually
         looper.run(eventually(check_restart, 1, retryWait=1.0))
     finally:
+        Restarter._node_control_tool = None
         nct.stop()
 
 

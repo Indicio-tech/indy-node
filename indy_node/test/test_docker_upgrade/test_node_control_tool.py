@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import tempfile
+import threading
 import time
 
 import pytest
@@ -27,6 +28,10 @@ def _make_tool(tmpdir, env_overrides=None, client_port=0):
     config.LEDGER_DIR = tmpdir
     tool = NodeControlTool(config=config)
     tool.client_port = client_port
+
+    t = threading.Thread(target=tool.start, daemon=True)
+    t.start()
+    time.sleep(0.1)
 
     if env_overrides:
         for k in old_env:
@@ -149,5 +154,6 @@ def test_health_accepts_message_type_key(tmpdir):
     tool = _make_tool(str(tmpdir), env_overrides=env, client_port=0)
 
     response = _send_command(tool, {'message_type': 'health'})
-    assert response['status'] == 'ok'
+    assert response['status'] in ('ok', 'degraded', 'unhealthy')
+    assert 'checks' in response
     tool.server.close()

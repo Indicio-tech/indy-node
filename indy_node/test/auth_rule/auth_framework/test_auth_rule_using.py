@@ -31,6 +31,7 @@ from indy_node.test.auth_rule.auth_framework.edit_roles import EditTrusteeToStew
 from indy_node.test.auth_rule.auth_framework.key_rotation import RotateKeyTest
 from indy_node.test.auth_rule.auth_framework.schema import SchemaTest
 from indy_node.test.auth_rule.auth_framework.upgrade import StartUpgradeTest, CancelUpgradeTest
+from indy_node.server.upgrader import Upgrader
 from indy_node.test.upgrade.helper import bumpedVersion
 from indy_node.test.auth_rule.auth_framework.add_attrib import AddAttribTest
 from indy_node.test.auth_rule.auth_framework.edit_attrib import EditAttribTest
@@ -140,6 +141,14 @@ class TestAuthRuleUsing():
         mpatch = MonkeyPatch()
         yield mpatch
         mpatch.undo()
+
+    @pytest.fixture(scope='module', autouse=True)
+    def patch_current_pkg_version(self, monkeymodule, pckg):
+        # See indy_node/test/upgrade/conftest.py: this suite drives its own
+        # fictional package version chain, so pin the downgrade check's
+        # "current version" to that chain instead of the real installed version.
+        monkeymodule.setattr(
+            Upgrader, '_get_current_pkg_version', staticmethod(lambda: pckg[1]))
 
     @pytest.fixture(scope='module')
     def validUpgrade(self, nodeIds, tconf, pckg):

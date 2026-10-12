@@ -27,6 +27,7 @@ def test_without_image_name_returns_true(tconf, monkeypatch):
     ev_data = UpgradeLogData(datetime.utcnow(), '1.2.3', 'some_id', tconf.UPGRADE_ENTRY)
 
     upgrader._actionLog.append_started(ev_data)
+    monkeypatch.setattr(upgrader, '_get_current_pkg_version', lambda: '1.2.3')
 
     assert upgrader.didLastExecutedUpgradeSucceeded is True
 

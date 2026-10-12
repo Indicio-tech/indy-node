@@ -47,7 +47,7 @@ def valid_upgrade(nodeSet, tconf):
 
     return dict(name='upgrade', version="10000.10.10",
                 action=START, schedule=schedule, timeout=1,
-                package=None,
+                package='indy-node',
                 sha256='db34a72a90d026dae49c3b3f0436c8d3963476c77468ad955845a1ccf7b03f55')
 
 

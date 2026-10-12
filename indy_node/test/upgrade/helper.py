@@ -142,6 +142,7 @@ class NodeControlToolExecutor:
         logger.debug("Send stop to NCTProcess with pid: {}".format(self.p.pid))
         self.tool.server.close()
         self.p.terminate()
+        self.p.join(timeout=5)
         # check that process with NodeControlTool.start function really stop.
         # process.terminate() just send SIGTERM and is not guarantee that process stops
         if self.p.is_alive():
@@ -150,9 +151,10 @@ class NodeControlToolExecutor:
 
             # FIXME: here was self.p.join(3), but since we've added (ok, Andrew Nikitin
             # has added) handler for SIGTERM here we wait for child process infinitely,
-            # but for now we have no time to fix it in more elegant way as it is not a
+            # but for now we have no time to fix it in a more elegant way as it is not a
             # real situation (Andrew said), so he has proposed this ugly hack.
             os.kill(self.p.pid, 9)
+            self.p.join(timeout=2)
         logger.debug("NCTProcess must be stopped, with pid: {}".format(self.p.pid))
 
 

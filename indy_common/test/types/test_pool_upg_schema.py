@@ -3,7 +3,7 @@ from collections import OrderedDict
 from plenum.common.messages.fields import ConstantField, ChooseField, MapField, Sha256HexField, \
     NonNegativeNumberField, LimitedLengthStringField, BooleanField
 from plenum.common.messages.fields import VersionField
-from indy_common.types import ClientPoolUpgradeOperation
+from indy_common.types import ClientPoolUpgradeOperation, DockerImageField
 
 
 EXPECTED_ORDERED_FIELDS = OrderedDict([
@@ -17,7 +17,7 @@ EXPECTED_ORDERED_FIELDS = OrderedDict([
     ("name", LimitedLengthStringField),
     ("force", BooleanField),
     ("reinstall", BooleanField),
-    ("image", LimitedLengthStringField),
+    ("image", DockerImageField),
     ("package", LimitedLengthStringField),
 ])
 
