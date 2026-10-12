@@ -1,0 +1,16 @@
+# Test-only image: adds the docker CLI + compose plugin to indy-node-test so
+# indy_node/test/test_docker_upgrade/test_real_docker_upgrade.py can issue
+# real `docker`/`docker compose` commands against the host's docker daemon
+# (mounted in via -v /var/run/docker.sock:/var/run/docker.sock).
+#
+# This is NOT a production image and says nothing about whether the real
+# node container should get a mounted socket or a sidecar — see CLAUDE.md.
+ARG BASE_IMAGE=indy-node-test:local
+FROM ${BASE_IMAGE}
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    docker.io docker-compose-v2 \
+    && rm -rf /var/lib/apt/lists/*
+# Left as root (unlike the production image's `indy` user) so it can read
+# the mounted host docker socket without fiddling with group/gid matching.
