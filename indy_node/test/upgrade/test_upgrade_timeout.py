@@ -15,14 +15,18 @@ def testTimeoutWorks(nodeSet, looper, monkeypatch, tconf):
     Checks that after some timeout upgrade is marked as failed if
     it not started
     """
-    async def mock(*x):
-        return None
+    async def mock_send_upgrade(self, ev_data, failTimeout):
+        logger.info("Waiting {} minutes for upgrade to be performed".format(failTimeout))
+        timesUp = functools.partial(self._declareTimeoutExceeded, ev_data)
+        self._schedule(timesUp, self.get_timeout(failTimeout))
+
+    from stp_core.common.log import getlogger
+    logger = getlogger()
 
     # patch get_timeout not to wait one whole minute
     monkeypatch.setattr(Upgrader, 'get_timeout', lambda self, timeout: timeout)
-    # patch _open_connection_and_send to make node think it sent upgrade
-    # successfully
-    monkeypatch.setattr(Upgrader, '_open_connection_and_send', mock)
+    # patch _sendUpgradeRequest to only schedule the timeout (skip Docker/upgrade)
+    monkeypatch.setattr(Upgrader, '_sendUpgradeRequest', mock_send_upgrade)
     pending = {node.name for node in nodeSet}
     version = '1.5.1'
     timeout = 1

@@ -31,6 +31,7 @@ from indy_node.test.auth_rule.auth_framework.edit_roles import EditTrusteeToStew
 from indy_node.test.auth_rule.auth_framework.key_rotation import RotateKeyTest
 from indy_node.test.auth_rule.auth_framework.schema import SchemaTest
 from indy_node.test.auth_rule.auth_framework.upgrade import StartUpgradeTest, CancelUpgradeTest
+from indy_node.server.upgrader import Upgrader
 from indy_node.test.upgrade.helper import bumpedVersion
 from indy_node.test.auth_rule.auth_framework.add_attrib import AddAttribTest
 from indy_node.test.auth_rule.auth_framework.edit_attrib import EditAttribTest
@@ -49,7 +50,7 @@ from indy_node.test.auth_rule.auth_framework.txn_author_agreement import TxnAuth
 from indy_node.test.auth_rule.auth_framework.txn_author_agreement_aml import TxnAuthorAgreementAMLTest
 from indy_node.test.auth_rule.auth_framework.validator_info import ValidatorInfoTest
 from indy_node.test.pool_config.conftest import poolConfigWTFF
-from indy_node.test.upgrade.conftest import patch_packet_mgr_output, EXT_PKT_NAME, EXT_PKT_VERSION
+from indy_common.constants import APP_NAME
 
 nodeCount = 7
 
@@ -132,7 +133,7 @@ class TestAuthRuleUsing():
 
     @pytest.fixture(scope='module')
     def pckg(self):
-        return (EXT_PKT_NAME, EXT_PKT_VERSION)
+        return (APP_NAME, '1.0.0')
 
     @pytest.fixture(scope='module')
     def monkeymodule(self):
@@ -141,8 +142,16 @@ class TestAuthRuleUsing():
         yield mpatch
         mpatch.undo()
 
+    @pytest.fixture(scope='module', autouse=True)
+    def patch_current_pkg_version(self, monkeymodule, pckg):
+        # See indy_node/test/upgrade/conftest.py: this suite drives its own
+        # fictional package version chain, so pin the downgrade check's
+        # "current version" to that chain instead of the real installed version.
+        monkeymodule.setattr(
+            Upgrader, '_get_current_pkg_version', staticmethod(lambda: pckg[1]))
+
     @pytest.fixture(scope='module')
-    def validUpgrade(self, nodeIds, tconf, pckg, monkeymodule):
+    def validUpgrade(self, nodeIds, tconf, pckg):
         schedule = {}
         unow = datetime.utcnow().replace(tzinfo=dateutil.tz.tzutc())
         startAt = unow + timedelta(seconds=3000)
@@ -152,7 +161,6 @@ class TestAuthRuleUsing():
             startAt = startAt + timedelta(seconds=acceptableDiff + 3)
 
         new_version = bumpedVersion(pckg[1])
-        patch_packet_mgr_output(monkeymodule, pckg[0], pckg[1], new_version)
 
         return dict(name='upgrade-{}'.format(randomText(3)), version=new_version,
                     action=START, schedule=schedule, timeout=1, package=pckg[0],

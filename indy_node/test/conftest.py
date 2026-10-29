@@ -52,7 +52,7 @@ from plenum.test.conftest import sdk_pool_handle as plenum_pool_handle, sdk_pool
     sdk_wallet_stewards, create_node_and_not_start, sdk_wallet_handle, sdk_wallet_new_client, sdk_new_client_seed
 
 from indy_common import strict_types
-from indy_common.constants import APP_NAME, CONFIG_LEDGER_ID, CONFIG_LEDGER_AUTH_POLICY, NETWORK_MONITOR, ENDORSER
+from indy_common.constants import CONFIG_LEDGER_ID, CONFIG_LEDGER_AUTH_POLICY, NETWORK_MONITOR, ENDORSER
 from indy_common.config_helper import NodeConfigHelper
 
 # noinspection PyUnresolvedReferences
@@ -61,11 +61,6 @@ from indy_common.test.conftest import general_conf_tdir, tconf as _tconf, poolTx
 
 from indy_node.test.helper import TestNode, TestNodeBootstrap
 from indy_node.test.mock import build_nym_request
-
-from indy_node.server.upgrader import Upgrader
-from indy_node.utils.node_control_utils import NodeControlUtil
-
-from indy_node.test.upgrade.helper import releaseVersion
 
 # typecheck during tests
 strict_types.defaultShouldCheck = True
@@ -221,35 +216,8 @@ def sdk_user_wallet_a(nodeSet, sdk_wallet_endorser,
                            skipverkey=True)
 
 
-# patch that makes sense in general for tests
-# since '_get_curr_info' relies on OS package manager
 @pytest.fixture(scope="module")
-def patchNodeControlUtil():
-    old__get_curr_info = getattr(NodeControlUtil, '_get_curr_info')
-
-    @classmethod
-    def _get_curr_info(cls, package):
-        from stp_core.common.log import getlogger
-        import os
-        logger = getlogger()
-        if package == APP_NAME:
-            return (
-                "Package: {}\nStatus: install ok installed\nPriority: extra\nSection: default\n"
-                "Installed-Size: 21\nMaintainer: maintainer\nArchitecture: amd64\nVersion: {}\n"
-            ).format(APP_NAME, releaseVersion())
-
-        raise ValueError("Only {} is expected, got: {}".format(APP_NAME, package))
-
-    setattr(NodeControlUtil, '_get_curr_info', _get_curr_info)
-    yield
-    setattr(NodeControlUtil, '_get_curr_info', old__get_curr_info)
-
-
-# link patching with tdir as the most common fixture to make the patch
-# applied regardless usage of the pool (there are cases when node control
-# is tested without pool creation)
-@pytest.fixture(scope="module")
-def tdir(patchNodeControlUtil, plenum_tdir):
+def tdir(plenum_tdir):
     return plenum_tdir
 
 
