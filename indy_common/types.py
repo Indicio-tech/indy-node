@@ -1,4 +1,5 @@
 import json
+import re
 from copy import deepcopy
 from hashlib import sha256
 
@@ -40,7 +41,7 @@ from indy_common.constants import ATTRIB, GET_ATTR, \
     GET_REVOC_REG_DELTA, FROM, TO, POOL_RESTART, DATETIME, VALIDATOR_INFO, \
     SCHEMA_FROM, SCHEMA_NAME, SCHEMA_VERSION, \
     SCHEMA_ATTR_NAMES, CLAIM_DEF_SIGNATURE_TYPE, CLAIM_DEF_PUBLIC_KEYS, CLAIM_DEF_TAG, CLAIM_DEF_SCHEMA_REF, \
-    CLAIM_DEF_PRIMARY, CLAIM_DEF_REVOCATION, CLAIM_DEF_FROM, PACKAGE, AUTH_RULE, AUTH_RULES, CONSTRAINT, AUTH_ACTION, \
+    CLAIM_DEF_PRIMARY, CLAIM_DEF_REVOCATION, CLAIM_DEF_FROM, PACKAGE, DOCKER_IMAGE, AUTH_RULE, AUTH_RULES, CONSTRAINT, AUTH_ACTION, \
     AUTH_TYPE, \
     FIELD, OLD_VALUE, NEW_VALUE, GET_AUTH_RULE, RULES, ISSUANCE_BY_DEFAULT, ISSUANCE_ON_DEMAND, RS_TYPE, \
     TAG_LIMIT_SIZE, JSON_LD_CONTEXT, RS_VERSION, \
@@ -298,6 +299,17 @@ class ClientGetRevocRegDeltaField(MessageValidator):
     )
 
 
+class DockerImageField(FieldBase):
+    _base_types = (str,)
+    _pattern = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._/:@-]*[a-zA-Z0-9])?$')
+
+    def _specific_validation(self, val):
+        if not val:
+            return 'empty string'
+        if not self._pattern.match(val):
+            return '{} is not a valid Docker image reference'.format(val)
+
+
 class ClientPoolUpgradeOperation(MessageValidator):
     schema = (
         (TXN_TYPE, ConstantField(POOL_UPGRADE)),
@@ -313,6 +325,7 @@ class ClientPoolUpgradeOperation(MessageValidator):
         (NAME, LimitedLengthStringField(max_length=NAME_FIELD_LIMIT)),
         (FORCE, BooleanField(optional=True)),
         (REINSTALL, BooleanField(optional=True)),
+        (DOCKER_IMAGE, DockerImageField(optional=True)),
         (PACKAGE, LimitedLengthStringField(max_length=NAME_FIELD_LIMIT, optional=True)),
     )
 
@@ -387,7 +400,6 @@ class ConstraintListField(MessageValidator):
                                         self).validate(constraint)
             if error_msg:
                 self._raise_invalid_message(error_msg)
-
 
 class AuthRuleValueField(LimitedLengthStringField):
     _base_types = (str, type(None))

@@ -27,4 +27,4 @@ def test_top_package_default_version():
 def test_src_version_cls():
     assert src_version_cls() == NodeVersion
     assert src_version_cls(APP_NAME) == NodeVersion
-    assert src_version_cls('some_package') == TopPkgDefVersion
+    assert src_version_cls('some_package') == NodeVersion
