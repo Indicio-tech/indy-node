@@ -1,13 +1,9 @@
-import re
-
 from typing import Optional
 
 from indy_common.authorize.auth_actions import AuthActionAdd, AuthActionEdit
 
-from indy_common.config_util import getConfig
-
 from indy_common.constants import CONFIG_LEDGER_ID, POOL_UPGRADE, \
-    ACTION, CANCEL, START, SCHEDULE, PACKAGE, REINSTALL
+    ACTION, CANCEL, START, SCHEDULE, DOCKER_IMAGE, PACKAGE, REINSTALL
 
 from indy_common.authorize.auth_request_validator import WriteRequestValidator
 from indy_node.server.upgrader import Upgrader
@@ -49,6 +45,13 @@ class PoolUpgradeHandler(WriteRequestHandler):
                 raise InvalidClientRequest(identifier, req_id,
                                            "{} not a valid schedule since {}".
                                            format(schedule, msg))
+            image = operation.get(DOCKER_IMAGE)
+            package = operation.get(PACKAGE)
+            if not image and not package:
+                raise InvalidClientRequest(
+                    identifier, req_id,
+                    "One of '{}' or '{}' is required for START action"
+                    .format(DOCKER_IMAGE, PACKAGE))
 
     def additional_dynamic_validation(self, request: Request, req_pp_time: Optional[int]):
         self._validate_request_type(request)
@@ -73,6 +76,19 @@ class PoolUpgradeHandler(WriteRequestHandler):
                 req_id,
                 "Upgrade '{}' is already scheduled".format(
                     operation.get(NAME)))
+
+        if action == START:
+            requested_version = operation.get(VERSION)
+            current_version = Upgrader._get_current_pkg_version()
+            reinstall = str(operation.get(REINSTALL)) == 'True'
+            if current_version and requested_version:
+                if not Upgrader._is_upgradable(
+                        requested_version, current_version, reinstall):
+                    raise InvalidClientRequest(
+                        identifier,
+                        req_id,
+                        "Version {} is not upgradable".format(requested_version))
+
         if status == '*':
             auth_action = AuthActionAdd(txn_type=POOL_UPGRADE,
                                         field=ACTION,
@@ -84,22 +100,6 @@ class PoolUpgradeHandler(WriteRequestHandler):
                                          new_value=action)
         self.write_req_validator.validate(request,
                                           [auth_action])
-
-        pkg_to_upgrade = operation.get(PACKAGE, getConfig().UPGRADE_ENTRY)
-        if not pkg_to_upgrade:
-            raise InvalidClientRequest(identifier, req_id, "Upgrade package name is empty")
-
-        # Only allow processing of a single package
-        pkg_to_upgrade = re.split("\s+|;|&&|\|", pkg_to_upgrade.splitlines()[0], 1)[0].rstrip()
-        targetVersion = operation[VERSION]
-        reinstall = operation.get(REINSTALL, False)
-        try:
-            res = self.upgrader.check_upgrade_possible(pkg_to_upgrade, targetVersion, reinstall)
-        except Exception as exc:
-            res = str(exc)
-
-        if res:
-            raise InvalidClientRequest(identifier, req_id, res)
 
     def apply_forced_request(self, req: Request):
         super().apply_forced_request(req)

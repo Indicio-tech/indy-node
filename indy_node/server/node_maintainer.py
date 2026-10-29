@@ -85,17 +85,6 @@ class NodeMaintainer(HasActionQueue, metaclass=ABCMeta):
         self.aqStash = deque()
         self.scheduledAction = None
 
-    async def _open_connection_and_send(self, message: str):
-        controlServiceHost = self.config.controlServiceHost
-        controlServicePort = self.config.controlServicePort
-        msgBytes = bytes(message, "utf-8")
-        _, writer = await asyncio.open_connection(
-            host=controlServiceHost,
-            port=controlServicePort
-        )
-        writer.write(msgBytes)
-        writer.close()
-
     @abstractmethod
     def _defaultLog(self, dataDir, config):
         """
@@ -114,14 +103,4 @@ class NodeMaintainer(HasActionQueue, metaclass=ABCMeta):
         pass
 
 
-class NodeControlToolMessage(metaclass=ABCMeta):
-    """
-    Data structure that represents request for node control tool
-    """
 
-    def __init__(self, message_type: str):
-        self.message_type = message_type
-
-    def toJson(self):
-        import json
-        return json.dumps(self.__dict__)
