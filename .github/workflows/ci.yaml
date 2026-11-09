@@ -13,8 +13,8 @@ on:
 
   workflow_dispatch:
     inputs:
-      plenum_base_image:
-        description: 'Plenum base image (e.g. ghcr.io/owner/indy-plenum-base:tag)'
+      plenum_image:
+        description: 'Plenum image (e.g. ghcr.io/owner/indy-plenum:tag)'
         required: false
         default: ''
 
@@ -58,15 +58,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve plenum base image
+      - name: Resolve plenum image
         id: plenum
         env:
           OWNER: ${{ steps.vars.outputs.owner }}
         run: |
-          if [ -n "${{ inputs.plenum_base_image }}" ]; then
-            echo "image=${{ inputs.plenum_base_image }}" >> $GITHUB_OUTPUT
+          if [ -n "${{ inputs.plenum_image }}" ]; then
+            echo "image=${{ inputs.plenum_image }}" >> $GITHUB_OUTPUT
           else
-            echo "image=ghcr.io/${OWNER}/indy-plenum-base:latest" >> $GITHUB_OUTPUT
+            echo "image=ghcr.io/${OWNER}/indy-plenum:latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Set up Docker Buildx
@@ -81,7 +81,7 @@ jobs:
           tags: |
             ${{ steps.vars.outputs.base_image_tag }}
             ${{ github.event_name == 'push' && format('ghcr.io/{0}/indy-node-base:latest', steps.vars.outputs.owner) || '' }}
-          build-args: PLENUM_BASE_IMAGE=${{ steps.plenum.outputs.image }}
+          build-args: PLENUM_IMAGE=${{ steps.plenum.outputs.image }}
           cache-from: type=gha,scope=pr-${{ github.event.pull_request.number || 'main' }}
           cache-to: type=gha,mode=max,scope=pr-${{ github.event.pull_request.number || 'main' }}
 

@@ -32,7 +32,7 @@ jobs:
           file: Dockerfile.base
           push: true
           build-args: |
-            PLENUM_BASE_IMAGE=ghcr.io/${{ steps.vars.outputs.plenum_owner }}/indy-plenum-base:${{ github.event.client_payload.dockerTag }}
+            PLENUM_IMAGE=ghcr.io/${{ steps.vars.outputs.plenum_owner }}/indy-plenum:${{ github.event.client_payload.dockerTag }}
           tags: ghcr.io/${{ steps.vars.outputs.owner }}/indy-node-base:latest
 
       - name: Build and push production image

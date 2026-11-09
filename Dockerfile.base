@@ -1,5 +1,4 @@
-ARG PLENUM_BASE_IMAGE=ghcr.io/hyperledger/indy-plenum-base:latest
-FROM ${PLENUM_BASE_IMAGE}
+ARG PLENUM_IMAGE=ghcr.io/hyperledger/indy-plenum:latest
+FROM ${PLENUM_IMAGE}
 
-RUN pip3 install python3-indy "indy-plenum==1.13.1" timeout-decorator>=0.5.0 distro==1.7.0 \
-    pytest-xdist pytest-forked pytest-asyncio attrs pytest
+RUN pip3 install timeout-decorator>=0.5.0 distro==1.7.0
