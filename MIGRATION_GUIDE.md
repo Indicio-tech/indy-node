@@ -77,7 +77,7 @@ sudo chown -R 1000:1000 /var/lib/docker/volumes/indy-logs/_data/
 
 ---
 
-## Step 3: Configure `docker-compose.yaml`
+## Step 3: Configure `docker-compose.yaml` and `.env`
 
 Create `docker-compose.yaml` on the host (e.g., at `/opt/indy-node/docker-compose.yaml`):
 
@@ -94,10 +94,10 @@ services:
       - indy-logs:/var/log/indy
     environment:
       - NODE_NAME=<your-node-name>
-      - NODE_IP=<your-node-ip>
-      - NODE_PORT=<your-node-port>
-      - CLIENT_IP=<your-client-ip>
-      - CLIENT_PORT=<your-client-port>
+      - NODE_IP=${NODE_IP}
+      - NODE_PORT=${NODE_PORT}
+      - CLIENT_IP=${CLIENT_IP}
+      - CLIENT_PORT=${CLIENT_PORT}
       - NETWORK_NAME=<your-network-name>
       - BIND_IP=0.0.0.0
     restart: unless-stopped
@@ -111,9 +111,25 @@ volumes:
     external: true
 ```
 
-Replace the environment variables with your node's existing values from:
+Replace `<your-node-name>` and `<your-network-name>` directly in the file with your node's existing values from:
 - `/etc/indy/indy_config.py` — contains `NETWORK_NAME`
 - Node configuration (usually from the initial setup or `pool_config.py`)
+
+`NODE_IP`, `NODE_PORT`, `CLIENT_IP`, and `CLIENT_PORT` are referenced as `${VAR}` instead, because they're also used in the `ports:` mapping above. Docker Compose does not read these from your shell — it looks for a file literally named `.env` in the **project directory**, which is the directory containing the compose file passed to `-f` (here, `/opt/indy-node`), not your current working directory. Copy the example and fill it in:
+
+```bash
+cp .env.example /opt/indy-node/.env
+```
+
+```bash
+# /opt/indy-node/.env
+NODE_IP=<your-node-ip>
+NODE_PORT=<your-node-port>
+CLIENT_IP=<your-client-ip>
+CLIENT_PORT=<your-client-port>
+```
+
+If `.env` is missing or a variable is left blank, Compose silently defaults it to an empty string (`WARN ... is not set. Defaulting to a blank string.`) rather than failing, which turns the port mapping into something like `"::"` and the container fails to start with `no port specified: ::<empty>`.
 
 The `external: true` on volumes tells Docker Compose to use the volumes you created in Step 2 rather than creating new ones.
 
